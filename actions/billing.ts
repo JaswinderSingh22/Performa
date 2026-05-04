@@ -19,6 +19,12 @@ export type BillingSubscribeResult =
   | { ok: true; subscriptionId: string; keyId: string }
   | { ok: false; error: string };
 
+/** UPI mandates forbid subscription end (`expire_at`) beyond ~30 years from start. */
+const UPI_SUBSCRIPTION_TOTAL_COUNT = {
+  month: 30 * 12, // 360 cycles
+  year: 30,
+} as const;
+
 export async function createRazorpaySubscription(
   input: unknown,
 ): Promise<BillingSubscribeResult> {
@@ -117,7 +123,7 @@ export async function createRazorpaySubscription(
     const subPayload = {
       plan_id: planId,
       customer_notify: 1 as const,
-      total_count: 999,
+      total_count: UPI_SUBSCRIPTION_TOTAL_COUNT[parsed.data.interval],
       quantity: 1,
       customer_id: customerId,
       notes: {
