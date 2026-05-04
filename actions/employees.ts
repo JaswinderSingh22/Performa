@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getOrgAccess } from "@/lib/org-context";
+import { normalizePlan, PLAN_LIMITS, planLabel } from "@/lib/plans";
+
 import { isUniqueViolation } from "@/types/database";
 import {
   employeeCreateSchema,
@@ -49,6 +51,32 @@ export async function createEmployee(
     if (Number.isNaN(t)) {
       return { ok: false, error: "Join date is not a valid calendar date." };
     }
+  }
+
+  const [{ count: existingCount, error: cntError }, { data: orgPlanRow }] =
+    await Promise.all([
+      access.supabase
+        .from("employees")
+        .select("*", { count: "exact", head: true })
+        .eq("org_id", access.orgId),
+      access.supabase
+        .from("organizations")
+        .select("plan")
+        .eq("id", access.orgId)
+        .maybeSingle(),
+    ]);
+
+  if (cntError) {
+    return { ok: false, error: cntError.message };
+  }
+
+  const plan = normalizePlan(orgPlanRow?.plan);
+  const seatCap = PLAN_LIMITS[plan].seats;
+  if ((existingCount ?? 0) >= seatCap) {
+    return {
+      ok: false,
+      error: `Your ${planLabel(plan)} workspace can include up to ${seatCap} people. Upgrade the plan in Settings to add more.`,
+    };
   }
 
   const { data, error } = await access.supabase

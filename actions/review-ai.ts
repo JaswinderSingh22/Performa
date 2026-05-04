@@ -2,6 +2,9 @@
 
 import { getOrgAccess } from "@/lib/org-context";
 import {
+  assertAiAssistAllowedForEmployee,
+  recordAiAssistUsage,
+} from "@/lib/billing/ai-limits";import {
   achievementInPeriod,
   noteInPeriod,
 } from "@/lib/employee-period-evidence";
@@ -234,12 +237,21 @@ export async function assistReviewFromPeriod(
     );
   }
 
+  const quota = await assertAiAssistAllowedForEmployee(
+    access,
+    parsed.data.employeeId,
+  );
+  if (!quota.ok) {
+    return { ok: false, error: quota.reason };
+  }
+
   try {
     const result = await runReviewAssistPrompt({
       mode: "generate",
       userBlock: contextBlock,
       focusNote: aiFocus.length > 0 ? aiFocus.join("\n") : undefined,
     });
+    await recordAiAssistUsage(access, parsed.data.employeeId);
     return {
       ok: true,
       data: {

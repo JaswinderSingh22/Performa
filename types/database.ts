@@ -9,6 +9,12 @@ export interface OrganizationRow {
   id: string;
   name: string;
   plan: string;
+  country_code: string;
+  billing_interval: "month" | "year" | null;
+  subscription_status: string;
+  razorpay_customer_id: string | null;
+  razorpay_subscription_id: string | null;
+  subscription_current_end: string | null;
   created_at: string;
 }
 

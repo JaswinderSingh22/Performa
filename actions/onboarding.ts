@@ -32,6 +32,7 @@ export async function completeOnboarding(
     .insert({
       name: parsed.data.organizationName,
       plan: "free",
+      country_code: parsed.data.countryCode.trim().toUpperCase(),
       created_by: user.id,
     })
     .select("id")

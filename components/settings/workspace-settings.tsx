@@ -11,10 +11,12 @@ import {
   CopyIcon,
   HashIcon,
   LayersIcon,
+  MapPinIcon,
   PencilIcon,
 } from "lucide-react";
 
 import { renameOrganization } from "@/actions/organization";
+import { planLabel, normalizePlan } from "@/lib/plans";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +35,8 @@ function planBadgeVariant(
 ): "default" | "secondary" | "outline" | "destructive" {
   const p = plan.toLowerCase();
   if (p === "free") return "secondary";
-  if (p.includes("pro") || p.includes("team")) return "default";
+  if (p === "pro_plus") return "default";
+  if (p === "pro") return "default";
   if (p.includes("enterprise")) return "default";
   return "outline";
 }
@@ -42,12 +45,15 @@ export function WorkspaceOrganizationSettings({
   workspaceId,
   name,
   plan,
+  countryLabel,
   createdAt,
   canRename,
 }: {
   workspaceId: string;
   name: string;
   plan: string;
+  /** Resolved display name from ISO country or raw code */
+  countryLabel?: string | null;
   createdAt: string | null;
   canRename: boolean;
 }): ReactElement {
@@ -122,9 +128,9 @@ export function WorkspaceOrganizationSettings({
         </div>
         <Badge
           variant={planBadgeVariant(plan)}
-          className="h-7 shrink-0 font-medium capitalize tabular-nums"
+          className="h-7 shrink-0 font-medium tabular-nums"
         >
-          {plan}
+          {planLabel(normalizePlan(plan))}
         </Badge>
       </CardHeader>
 
@@ -249,6 +255,25 @@ export function WorkspaceOrganizationSettings({
           <Separator />
 
           <div className="flex gap-3 py-4">
+            <MapPinIcon
+              className="text-muted-foreground mt-0.5 size-4 shrink-0"
+              aria-hidden
+            />
+            <div className="space-y-1">
+              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                Manager country
+              </dt>
+              <dd className="text-foreground font-medium">{countryLabel || "—"}</dd>
+              <p className="text-muted-foreground max-w-md text-xs leading-relaxed">
+                Captured when the workspace was created. Pricing is quoted in ₹ INR for
+                every region.
+              </p>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="flex gap-3 py-4">
             <CalendarIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
             <div className="space-y-1">
               <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
@@ -271,12 +296,12 @@ export function SettingsWorkspaceTipsCard(): ReactElement {
           About billing
         </CardTitle>
         <CardDescription className="text-xs leading-relaxed">
-          Plan changes aren&apos;t editable in-app yet. Contact your workspace admin or
-          support when you need a different tier.
+          Razorpay handles cards and mandates. Admins upgrade from Plans & billing
+          below; everyone still sees prices in ₹.
         </CardDescription>
       </CardHeader>
       <CardContent className="text-muted-foreground pt-0 text-xs leading-relaxed">
-        Use the dashboard and reviews hub to track performance coverage in the meantime.
+        Use the checklist and roll-up workflows while your admin picks the best tier.
       </CardContent>
     </Card>
   );

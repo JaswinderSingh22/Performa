@@ -6,6 +6,7 @@ import { Loader2Icon } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { completeOnboarding } from "@/actions/onboarding";
+import { MANAGER_COUNTRIES } from "@/lib/countries";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -108,6 +109,28 @@ export function OnboardingForm({
                   required
                   className="focus-visible:ring-primary/25 rounded-xl transition-shadow duration-200"
                 />
+              </motion.div>
+              <motion.div
+                variants={prefersReducedMotion ? undefined : staggerFieldItem}
+                className="space-y-2"
+              >
+                <Label htmlFor="onboard-country">Country (manager)</Label>
+                <select
+                  id="onboard-country"
+                  name="countryCode"
+                  required
+                  defaultValue="IN"
+                  className="border-input bg-background text-foreground focus-visible:border-ring ring-offset-background hover:border-muted-foreground/45 focus-visible:ring-ring/40 h-11 w-full cursor-pointer rounded-xl border px-3 py-2 text-sm shadow-inner transition-colors focus-visible:ring-[3px] focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-55"
+                >
+                  {MANAGER_COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  Helps us localize policy; invoices are processed in ₹ (INR) for everyone.
+                </p>
               </motion.div>
               <motion.div
                 variants={prefersReducedMotion ? undefined : staggerFieldItem}
