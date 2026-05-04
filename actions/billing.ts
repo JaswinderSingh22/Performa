@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getOrgAccess } from "@/lib/org-context";
-import { getRazorpayPlanId, type PaidPlanKey } from "@/lib/plans";
+import {
+  getRazorpayPlanId,
+  normalizePlan,
+  paidPlanTier,
+  type PaidPlanKey,
+} from "@/lib/plans";
 import {
   getPublicRazorpayKeyId,
   getRazorpay,
@@ -90,12 +95,41 @@ export async function createRazorpaySubscription(
     return { ok: false, error: "Could not load billing details for this workspace." };
   }
 
-  if (org.plan !== "free" && org.subscription_status === "active") {
-    return {
-      ok: false,
-      error:
-        "This workspace already has an active subscription. Cancel it from your Razorpay subscription emails before starting a new one.",
-    };
+  const currentPlan = normalizePlan(org.plan);
+  const subscriptionActive = org.subscription_status === "active";
+  const existingSubId = org.razorpay_subscription_id?.trim() ?? "";
+
+  if (subscriptionActive && currentPlan !== "free") {
+    if (paidPlanTier(targetPlanKey) <= paidPlanTier(currentPlan)) {
+      return {
+        ok: false,
+        error:
+          targetPlanKey === currentPlan
+            ? "You already have this plan."
+            : "To move to a lower plan, cancel your current subscription from Razorpay subscription emails first.",
+      };
+    }
+    if (!existingSubId.length) {
+      return {
+        ok: false,
+        error: "Missing subscription reference. Contact support.",
+      };
+    }
+    try {
+      await rz.subscriptions.cancel(existingSubId, false);
+      await access.supabase
+        .from("organizations")
+        .update({
+          subscription_status: "cancelled",
+          razorpay_subscription_id: null,
+        })
+        .eq("id", access.orgId)
+        .eq("razorpay_subscription_id", existingSubId);
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : "Could not cancel the current subscription.";
+      return { ok: false, error: msg };
+    }
   }
 
   let customerId = org.razorpay_customer_id?.trim() ?? "";

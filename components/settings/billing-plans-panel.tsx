@@ -26,6 +26,7 @@ import {
   effectiveMonthlyYearly,
   formatInr,
   normalizePlan,
+  paidPlanTier,
   planLabel,
   type PaidPlanKey,
   type PlanId,
@@ -301,7 +302,9 @@ export function BillingPlansPanel({
                     !razorpayReady ||
                     busy !== null ||
                     isCurrent ||
-                    (plan !== "free" && subscriptionStatus === "active")
+                    (subscriptionStatus === "active" &&
+                      plan !== "free" &&
+                      paidPlanTier(paid) <= paidPlanTier(plan))
                   }
                   onClick={() => void startCheckout(paid)}
                 >
@@ -327,8 +330,17 @@ export function BillingPlansPanel({
         ) : null}
         {plan !== "free" && subscriptionStatus === "active" ? (
           <p className="text-muted-foreground text-xs leading-relaxed">
-            To cancel or change billing, use the links in Razorpay subscription emails
-            or your Razorpay dashboard. Performa syncs status from Razorpay webhooks.
+            {plan === "pro" ? (
+              <>
+                You can upgrade to Pro+ from this page. To cancel billing or downgrade,
+                use the links in Razorpay subscription emails or your Razorpay dashboard.
+              </>
+            ) : (
+              <>
+                To cancel or change billing, use the links in Razorpay subscription emails
+                or your Razorpay dashboard. Performa syncs status from Razorpay webhooks.
+              </>
+            )}
           </p>
         ) : null}
       </CardContent>

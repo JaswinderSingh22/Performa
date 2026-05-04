@@ -114,6 +114,11 @@ export async function POST(request: Request): Promise<Response> {
     event === "subscription.completed" ||
     event === "subscription.expired"
   ) {
+    // Only downgrade the org that still owns this subscription id (ignore stale
+    // cancellations after an in-app upgrade swapped to a new Razorpay subscription).
+    if (!orgBySub?.id) {
+      return new Response("ok", { status: 200 });
+    }
     await admin
       .from("organizations")
       .update({
@@ -123,18 +128,23 @@ export async function POST(request: Request): Promise<Response> {
         razorpay_subscription_id: null,
         subscription_current_end: null,
       })
-      .eq("id", orgId);
+      .eq("id", orgBySub.id)
+      .eq("razorpay_subscription_id", subId);
     return new Response("ok", { status: 200 });
   }
 
   if (event === "subscription.halted" || event === "subscription.paused") {
+    if (!orgBySub?.id) {
+      return new Response("ok", { status: 200 });
+    }
     await admin
       .from("organizations")
       .update({
         subscription_status: statusStr || event.replace("subscription.", ""),
         subscription_current_end: periodEnd,
       })
-      .eq("id", orgId);
+      .eq("id", orgBySub.id)
+      .eq("razorpay_subscription_id", subId);
   }
 
   return new Response("ok", { status: 200 });

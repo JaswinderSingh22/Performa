@@ -73,6 +73,13 @@ export function planLabel(plan: PlanId): string {
 
 export type PaidPlanKey = Exclude<PlanId, "free">;
 
+/** Paid plan strength: Pro+ &gt; Pro &gt; Free (for upgrades and checkout rules). */
+export function paidPlanTier(plan: PlanId): number {
+  if (plan === "pro_plus") return 2;
+  if (plan === "pro") return 1;
+  return 0;
+}
+
 /** Resolve Razorpay plan_id from env; empty string if unset. */
 export function getRazorpayPlanId(
   plan: PaidPlanKey,
