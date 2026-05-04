@@ -20,9 +20,16 @@
 # production
 /build
 
-# misc
+# misc & OS junk
 .DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+Desktop.ini
 *.pem
+*.swp
+*.swo
+*~
 
 # debug
 npm-debug.log*
@@ -40,3 +47,26 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# editors / local IDE (machine-specific; not shared)
+.cursor/
+.idea/
+*.code-workspace
+
+# Supabase CLI local cache & temp
+supabase/.temp/
+supabase/.branches/
+
+# monorepo / build caches
+.turbo/
+
+# eslint
+.eslintcache
+
+# local logs & generated storybook
+*.log
+storybook-static/
+
+# local keys (never commit)
+*.key
+*.crt
