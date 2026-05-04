@@ -33,13 +33,31 @@ import {
 
 type RazorpayInstance = { open: () => void };
 
+/** Only UPI (QR + intent) and cards; hides netbanking, wallets, EMI, etc. */
+const CHECKOUT_PAYMENT_CONFIG = {
+  display: {
+    blocks: {
+      upi_card: {
+        name: "Pay with UPI or card",
+        instruments: [{ method: "upi" }, { method: "card" }],
+      },
+    },
+    sequence: ["block.upi_card"],
+    preferences: {
+      show_default_blocks: false,
+    },
+  },
+};
+
 type RazorpayOptions = {
   key: string;
   subscription_id: string;
   name: string;
   description: string;
   readonly theme?: { color: string };
+  config?: typeof CHECKOUT_PAYMENT_CONFIG;
   handler: () => void;
+  modal?: { ondismiss?: () => void };
 };
 
 declare global {
@@ -104,6 +122,19 @@ export function BillingPlansPanel({
       }
       const amount =
         PLAN_PRICES_INR[target][interval === "month" ? "monthly" : "yearly"];
+
+      const refreshAfterCheckout = (): void => {
+        queueMicrotask(() => router.refresh());
+        window.setTimeout(() => router.refresh(), 2000);
+      };
+
+      let didScheduleRefresh = false;
+      const scheduleRefreshOnce = (): void => {
+        if (didScheduleRefresh) return;
+        didScheduleRefresh = true;
+        refreshAfterCheckout();
+      };
+
       const rzp = new window.Razorpay({
         key: res.keyId,
         subscription_id: res.subscriptionId,
@@ -112,8 +143,14 @@ export function BillingPlansPanel({
           interval === "month" ? "monthly" : "yearly"
         } — ${formatInr(amount)}`,
         theme: { color: "#4f46e5" },
+        config: CHECKOUT_PAYMENT_CONFIG,
         handler: () => {
-          router.refresh();
+          scheduleRefreshOnce();
+        },
+        modal: {
+          ondismiss: () => {
+            scheduleRefreshOnce();
+          },
         },
       });
       rzp.open();
