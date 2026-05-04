@@ -83,13 +83,17 @@ export function LoginForm() {
             Sign in
           </CardTitle>
           <CardDescription className="text-pretty">
-            Sign in with Google or your workspace email and password.
+            Use Google once on this screen, or sign in with email and password.
           </CardDescription>
         </CardHeader>
         <form onSubmit={onSubmit}>
           <CardContent className="space-y-6">
             <div className="space-y-4">
-              <GoogleOAuthButton redirectNext={next} disabled={pending} />
+              <GoogleOAuthButton
+                redirectNext={next}
+                label="Sign in with Google"
+                disabled={pending}
+              />
               <div className="flex items-center gap-3">
                 <Separator className="shrink" />
                 <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">

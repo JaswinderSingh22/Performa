@@ -121,8 +121,7 @@ export function WorkspaceOrganizationSettings({
               Workspace
             </CardTitle>
             <CardDescription className="max-w-xl text-pretty leading-relaxed">
-              Name, plan, and identifier for this ReviewPilot organization. Share
-              the workspace ID only with people who need it for support.
+              Name, plan, and workspace ID. Share the ID only with people who need it for support.
             </CardDescription>
           </div>
         </div>

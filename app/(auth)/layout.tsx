@@ -15,8 +15,11 @@ export default function AuthLayout({
           href="/"
           className="font-heading text-foreground/90 hover:text-foreground text-lg font-semibold tracking-tight transition-colors"
         >
-          ReviewPilot
+          Performa
         </Link>
+        <p className="text-muted-foreground text-center text-xs">
+          Sign in or create an account to open your workspace.
+        </p>
         {children}
       </div>
     </div>

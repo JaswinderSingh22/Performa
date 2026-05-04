@@ -114,14 +114,14 @@ export function AppSidebar(): React.ReactElement {
         transition={{ duration: 0.35, ease: easingOut }}
       >
         <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg shadow-md shadow-primary/15">
-          <span className="font-heading text-xs font-bold tracking-tight">RP</span>
+          <span className="font-heading text-xs font-bold tracking-tight">P</span>
         </div>
         <div className="min-w-0">
           <Link
             href="/dashboard"
             className="font-heading text-sidebar-foreground block truncate text-sm font-semibold tracking-tight"
           >
-            ReviewPilot
+            Performa
           </Link>
           <p className="text-muted-foreground truncate text-[11px]">
             Workspace

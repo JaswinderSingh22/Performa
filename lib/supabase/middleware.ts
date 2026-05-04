@@ -42,7 +42,10 @@ export async function updateSession(req: NextRequest): Promise<NextResponse> {
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/employees") ||
     pathname.startsWith("/settings") ||
-    pathname.startsWith("/profile");
+    pathname.startsWith("/profile") ||
+    pathname.startsWith("/reviews") ||
+    pathname.startsWith("/notes") ||
+    pathname.startsWith("/achievements");
   const isOnboarding = pathname.startsWith("/onboarding");
   const isAuthRoute = pathname === "/login" || pathname === "/signup";
 
@@ -75,6 +78,21 @@ export async function updateSession(req: NextRequest): Promise<NextResponse> {
       .eq("id", user.id)
       .maybeSingle();
     hasOrg = Boolean(profileRow?.org_id);
+  }
+
+  const isHome = pathname === "/";
+
+  if (isHome) {
+    if (!user) {
+      if (devBypass) {
+        return redirectPreservingCookies(req, res, "/dashboard");
+      }
+      return redirectPreservingCookies(req, res, "/login");
+    }
+    if (!hasOrg) {
+      return redirectPreservingCookies(req, res, "/onboarding");
+    }
+    return redirectPreservingCookies(req, res, "/dashboard");
   }
 
   if (isOnboarding) {

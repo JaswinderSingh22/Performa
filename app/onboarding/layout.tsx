@@ -15,7 +15,7 @@ export default function OnboardingLayout({
           href="/"
           className="font-heading text-foreground/90 hover:text-foreground text-lg font-semibold tracking-tight transition-colors"
         >
-          ReviewPilot
+          Performa
         </Link>
         <p className="text-muted-foreground max-w-md text-center text-sm leading-relaxed">
           You&apos;re one step away from your workspace.

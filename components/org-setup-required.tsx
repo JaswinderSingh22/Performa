@@ -14,7 +14,7 @@ export function OrgSetupRequired() {
         <CardHeader className="space-y-3">
           <CardTitle className="text-xl">Finish setup</CardTitle>
           <CardDescription className="leading-relaxed">
-            ReviewPilot couldn&apos;t load your workspace configuration. Confirm
+            Performa couldn&apos;t load your workspace configuration. Confirm
             the required environment variables and database migration are
             applied, then try again—or sign in to access your organization.
           </CardDescription>

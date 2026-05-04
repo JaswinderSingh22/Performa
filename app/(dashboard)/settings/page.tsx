@@ -47,7 +47,7 @@ export default async function SettingsPage(): Promise<ReactElement | null> {
     <>
       <DashboardHeader
         title="Settings"
-        description="Workspace identity, plan, and shortcuts to the rest of ReviewPilot."
+        description="Workspace identity, plans, and shortcuts for Performa."
       />
       <main className="relative flex flex-1 flex-col overflow-x-hidden">
         <div className="mx-auto w-full max-w-6xl px-6 py-10 md:py-12">

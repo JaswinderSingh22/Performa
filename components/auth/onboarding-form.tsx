@@ -40,6 +40,7 @@ export function OnboardingForm({
     const fd = new FormData(e.currentTarget);
     const payload = {
       organizationName: String(fd.get("organizationName") ?? "").trim(),
+      countryCode: String(fd.get("countryCode") ?? "").trim(),
       fullName: String(fd.get("fullName") ?? "").trim(),
     };
 

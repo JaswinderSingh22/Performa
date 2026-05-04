@@ -15,9 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ReviewPilot — AI Performance Review Copilot",
+  title: "Performa — Reviews grounded in context",
   description:
-    "Help managers run fair, consistent performance reviews with structured context.",
+    "Run structured reviews and period roll-ups with notes, achievements, and AI assist — in one workspace.",
 };
 
 export default function RootLayout({

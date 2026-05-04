@@ -86,7 +86,7 @@ export function SignupForm() {
             Create account
           </CardTitle>
           <CardDescription className="text-pretty">
-            Create an account with Google or email and password.
+            Use Google once on this screen, or create an account with email and password.
           </CardDescription>
         </CardHeader>
         <form onSubmit={onSubmit}>
