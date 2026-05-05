@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 import type { EmployeeRow } from "@/types/database";
 import { cn } from "@/lib/utils";
 import { easingOut } from "@/lib/motion-variants";
@@ -49,6 +50,7 @@ export function AnimatedEmployeesTable({
   const prefersReducedMotion = useReducedMotion() === true;
   const [departmentFilter, setDepartmentFilter] = React.useState("all");
   const [teamFilter, setTeamFilter] = React.useState("all");
+  const [searchQuery, setSearchQuery] = React.useState("");
   const [sortBy, setSortBy] = React.useState<
     "name_asc" | "name_desc" | "join_date_desc" | "join_date_asc"
   >("name_asc");
@@ -66,12 +68,23 @@ export function AnimatedEmployeesTable({
   }, [employees]);
 
   const visibleEmployees = React.useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
     const filtered = employees.filter((employee) => {
       const dept = employee.department.trim();
       const team = employee.team_name?.trim() ?? "";
       const deptOk = departmentFilter === "all" || dept === departmentFilter;
       const teamOk = teamFilter === "all" || team === teamFilter;
-      return deptOk && teamOk;
+      const searchable = [
+        employee.name,
+        employee.email,
+        employee.role,
+        employee.department,
+        employee.team_name ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      const searchOk = query.length === 0 || searchable.includes(query);
+      return deptOk && teamOk && searchOk;
     });
 
     const byJoin = (row: EmployeeListRow): number => {
@@ -100,7 +113,7 @@ export function AnimatedEmployeesTable({
     });
 
     return sorted;
-  }, [employees, departmentFilter, teamFilter, sortBy]);
+  }, [employees, departmentFilter, teamFilter, sortBy, searchQuery]);
 
   return (
     <motion.div
@@ -110,6 +123,18 @@ export function AnimatedEmployeesTable({
       transition={{ duration: 0.35, ease: easingOut }}
     >
       <div className="mb-4 flex flex-wrap items-end gap-3 px-1">
+        <div className="grid gap-1">
+          <label htmlFor="employee-table-search" className="text-muted-foreground text-xs font-medium">
+            Search
+          </label>
+          <Input
+            id="employee-table-search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search name, email, role, team..."
+            className="h-8 min-w-[220px] md:min-w-[280px]"
+          />
+        </div>
         <div className="grid gap-1">
           <label className="text-muted-foreground text-xs font-medium">Department</label>
           <select
@@ -162,100 +187,108 @@ export function AnimatedEmployeesTable({
           </select>
         </div>
       </div>
-      <Table className="min-w-[980px]">
-        <TableHeader>
-          <TableRow className="border-border/80">
-            <TableHead>Name</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Role</TableHead>
-            <TableHead>Department</TableHead>
-            <TableHead>Team</TableHead>
-            <TableHead className="text-center">Joined</TableHead>
-            <TableHead className="text-center tabular-nums">
-              Achievements
-            </TableHead>
-            <TableHead className="text-center tabular-nums">Reviews</TableHead>
-            <TableHead className="text-center tabular-nums">Notes</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {visibleEmployees.map((employee, index) => (
-            <MotionTableRow
-              key={employee.id}
-              {...(prefersReducedMotion
-                ? {}
-                : {
-                    initial: { opacity: 0, x: -8 },
-                    animate: { opacity: 1, x: 0 },
-                    transition: {
-                      duration: 0.28,
-                      ease: easingOut,
-                      delay: 0.03 + index * 0.04,
-                    },
-                  })}
-              className="group cursor-pointer"
-              role="button"
-              tabIndex={0}
-              onClick={() => router.push(`/employees/${employee.id}/insights`)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  router.push(`/employees/${employee.id}/insights`);
-                }
-              }}
-            >
-              <TableCell className="py-3 font-medium">
-                <span className="text-foreground group-hover:text-primary underline-offset-4 transition-colors">
-                  {employee.name}
-                </span>
-              </TableCell>
-              <TableCell className="text-muted-foreground max-w-[200px] truncate py-3">
-                {employee.email}
-              </TableCell>
-              <TableCell className="py-3">
-                {employee.role ? (
-                  <span>{employee.role}</span>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </TableCell>
-              <TableCell className="py-3">
-                {employee.department ? (
-                  <span>{employee.department}</span>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </TableCell>
-              <TableCell className="py-3">
-                {employee.team_name?.trim() ? (
-                  <span>{employee.team_name}</span>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </TableCell>
-              <TableCell className="text-muted-foreground py-3 text-center text-xs whitespace-nowrap">
-                {employee.join_date ?? "—"}
-              </TableCell>
-              <TableCell className="py-3 text-center">
-                <CountBadge value={employee.achievement_count} />
-              </TableCell>
-              <TableCell className="py-3 text-center">
-                <CountBadge value={employee.review_count} />
-              </TableCell>
-              <TableCell className="py-3 text-center">
-                <CountBadge value={employee.notes_count} />
-              </TableCell>
-            </MotionTableRow>
-          ))}
-          {visibleEmployees.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={9} className="text-muted-foreground py-10 text-center text-sm">
-                No employees match current filters.
-              </TableCell>
-            </TableRow>
-          ) : null}
-        </TableBody>
-      </Table>
+      <div className="bg-card border-border/70 overflow-hidden rounded-xl border shadow-sm">
+        <div className="max-h-[520px] overflow-auto">
+          <Table className="min-w-[980px] border-separate border-spacing-0">
+            <TableHeader>
+              <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border/80">
+                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4">Name</TableHead>
+                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4">Email</TableHead>
+                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4">Role</TableHead>
+                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4">Department</TableHead>
+                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4">Team</TableHead>
+                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4 text-center">Joined</TableHead>
+                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4 text-center tabular-nums">
+                  Achievements
+                </TableHead>
+                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4 text-center tabular-nums">
+                  Reviews
+                </TableHead>
+                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4 text-center tabular-nums">
+                  Notes
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visibleEmployees.map((employee, index) => (
+                <MotionTableRow
+                  key={employee.id}
+                  {...(prefersReducedMotion
+                    ? {}
+                    : {
+                        initial: { opacity: 0, x: -8 },
+                        animate: { opacity: 1, x: 0 },
+                        transition: {
+                          duration: 0.28,
+                          ease: easingOut,
+                          delay: 0.03 + index * 0.04,
+                        },
+                      })}
+                  className="group hover:bg-muted/20 cursor-pointer border-b border-border/65"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => router.push(`/employees/${employee.id}/insights`)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      router.push(`/employees/${employee.id}/insights`);
+                    }
+                  }}
+                >
+                  <TableCell className="px-4 py-3 font-medium">
+                    <span className="text-foreground group-hover:text-primary underline-offset-4 transition-colors">
+                      {employee.name}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground max-w-[200px] truncate px-4 py-3">
+                    {employee.email}
+                  </TableCell>
+                  <TableCell className="px-4 py-3">
+                    {employee.role ? (
+                      <span>{employee.role}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="px-4 py-3">
+                    {employee.department ? (
+                      <span>{employee.department}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="px-4 py-3">
+                    {employee.team_name?.trim() ? (
+                      <span>{employee.team_name}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground px-4 py-3 text-center text-xs whitespace-nowrap">
+                    {employee.join_date ?? "—"}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    <CountBadge value={employee.achievement_count} />
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    <CountBadge value={employee.review_count} />
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-center">
+                    <CountBadge value={employee.notes_count} />
+                  </TableCell>
+                </MotionTableRow>
+              ))}
+              {visibleEmployees.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-muted-foreground py-10 text-center text-sm">
+                    No employees match current search or filters.
+                  </TableCell>
+                </TableRow>
+              ) : null}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
     </motion.div>
   );
 }
