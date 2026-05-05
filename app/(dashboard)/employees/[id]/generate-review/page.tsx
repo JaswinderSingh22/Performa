@@ -55,6 +55,15 @@ export default async function EmployeeGenerateReviewPage({
 
   const employee = employeeRow as EmployeeRow;
 
+  const cadenceParam = sp.cadence;
+  const parsedCadence: ReviewCadence | null =
+    cadenceParam === "monthly" ||
+    cadenceParam === "quarterly" ||
+    cadenceParam === "mid_year" ||
+    cadenceParam === "yearly"
+      ? cadenceParam
+      : null;
+
   const { data: reviewsRaw } = await access.supabase
     .from("reviews")
     .select(
@@ -113,13 +122,7 @@ export default async function EmployeeGenerateReviewPage({
       ? {
           from: sp.from,
           to: sp.to,
-          cadence:
-            sp.cadence === "monthly" ||
-            sp.cadence === "quarterly" ||
-            sp.cadence === "mid_year" ||
-            sp.cadence === "yearly"
-              ? sp.cadence
-              : null,
+          cadence: parsedCadence,
           periodKey:
             typeof sp.periodKey === "string" && sp.periodKey.trim().length > 0
               ? sp.periodKey.trim()
