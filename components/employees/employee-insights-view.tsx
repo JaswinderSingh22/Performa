@@ -540,29 +540,31 @@ export function EmployeeInsightsView({
                 Capture wins on the profile to strengthen the next draft.
               </p>
             ) : (
-              <ul className="space-y-2">
-                {recentAchievements.map((a) => (
-                  <li
-                    key={a.id}
-                    className="border-border/70 bg-muted/20 hover:bg-muted/35 flex items-start gap-3 rounded-xl border px-4 py-3 transition-colors"
-                  >
-                    <div className="bg-primary/10 text-primary border-primary/20 flex size-9 shrink-0 items-center justify-center rounded-lg border text-[10px] font-bold uppercase">
-                      Win
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-medium leading-snug">{a.title}</p>
-                      <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-xs">
-                        <span className="rounded-full border border-border/70 px-2 py-0.5">
-                          {a.category}
-                        </span>
-                        <span className="tabular-nums">
-                          {(a.achievement_date ?? a.created_at.slice(0, 10)).slice(0, 10)}
-                        </span>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <ScrollArea className="max-h-[320px] pr-2">
+                <ul className="space-y-2">
+                  {recentAchievements.map((a) => (
+                    <li
+                      key={a.id}
+                      className="border-border/70 bg-muted/20 flex items-start gap-3 rounded-xl border px-4 py-3"
+                    >
+                        <div className="bg-primary/10 text-primary border-primary/20 flex size-9 shrink-0 items-center justify-center rounded-lg border text-[10px] font-bold uppercase">
+                          Win
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium leading-snug">{a.title}</p>
+                          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-xs">
+                            <span className="rounded-full border border-border/70 px-2 py-0.5">
+                              {a.category}
+                            </span>
+                            <span className="tabular-nums">
+                              {(a.achievement_date ?? a.created_at.slice(0, 10)).slice(0, 10)}
+                            </span>
+                          </div>
+                        </div>
+                    </li>
+                  ))}
+                </ul>
+              </ScrollArea>
             )}
           </CardContent>
         </Card>
@@ -587,7 +589,7 @@ export function EmployeeInsightsView({
                 after you capture context.
               </p>
             ) : (
-              <ScrollArea className="max-h-[min(340px,50vh)] pr-3">
+              <ScrollArea className="max-h-[320px] pr-2">
                 <ul className="space-y-2">
                   {recentReviews.map((r) => {
                     const slo = strategyLabel(r.generation_strategy);
@@ -597,7 +599,7 @@ export function EmployeeInsightsView({
                       "No narrative saved yet.";
                     return (
                       <li key={r.id}>
-                        <div className="border-border/70 bg-muted/20 hover:bg-muted/35 rounded-xl border px-4 py-3 transition-colors">
+                        <div className="border-border/70 bg-muted/20 rounded-xl border px-4 py-3">
                           <div className="min-w-0">
                             <p className="font-medium leading-tight truncate">
                               {reviewTitle(r)}

@@ -340,7 +340,7 @@ export function DashboardView({
                     {topRated.map((row) => (
                       <li key={row.employeeId}>
                         <Link
-                          href={`/employees/${row.employeeId}/insights?tab=reviews`}
+                          href={`/employees/${row.employeeId}/insights`}
                           className="hover:bg-muted/45 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition-colors"
                         >
                           <span className="text-foreground font-medium truncate">
@@ -378,7 +378,7 @@ export function DashboardView({
                     {needsAttention.map((row) => (
                       <li key={`low-${row.employeeId}`}>
                         <Link
-                          href={`/employees/${row.employeeId}/insights?tab=reviews`}
+                          href={`/employees/${row.employeeId}/insights`}
                           className="hover:bg-muted/45 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition-colors"
                         >
                           <span className="text-foreground font-medium truncate">
@@ -597,19 +597,9 @@ export function DashboardView({
               <div>
                 <CardTitle>Recent performance reviews</CardTitle>
                 <CardDescription>
-                  Opens the review hub on the exact row. Notes and achievements stay
-                  separate—only reviews have a finalize step.
+                    Opens each employee&apos;s insights directly in the reviews tab.
                 </CardDescription>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="rounded-lg shadow-sm"
-                render={<Link href="/reviews" />}
-                nativeButton={false}
-              >
-                Review hub
-              </Button>
             </CardHeader>
             <CardContent className="px-0 pt-0">
               {recentReviews.length === 0 ? (
@@ -633,7 +623,7 @@ export function DashboardView({
                       }}
                     >
                       <Link
-                        href={`/reviews?highlight=${row.id}`}
+                        href={`/employees/${row.employeeId}/insights`}
                         className="hover:bg-muted/45 flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 transition-colors md:px-6"
                       >
                         <div className="min-w-0">
