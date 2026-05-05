@@ -115,9 +115,24 @@ export function BillingPlansPanel({
 }): React.ReactElement {
   const plan = normalizePlan(workspacePlan);
   const router = useRouter();
-  const [interval, setInterval] = React.useState<"month" | "year">("month");
+  const [interval, setInterval] = React.useState<"month" | "year">(
+    billingInterval ?? "month",
+  );
   const [busy, setBusy] = React.useState<PaidPlanKey | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (billingInterval === "month" || billingInterval === "year") {
+      setInterval(billingInterval);
+    }
+  }, [billingInterval]);
+
+  const orgIntervalLabel =
+    billingInterval === "year"
+      ? "Billed yearly"
+      : billingInterval === "month"
+        ? "Billed monthly"
+        : null;
 
   const startCheckout = async (target: PaidPlanKey): Promise<void> => {
     setError(null);
@@ -212,8 +227,8 @@ export function BillingPlansPanel({
               onClick={() => setInterval("month")}
               className={
                 interval === "month"
-                  ? "bg-background text-foreground rounded-full px-4 py-1.5 text-xs font-semibold shadow-sm"
-                  : "text-muted-foreground rounded-full px-4 py-1.5 text-xs font-medium"
+                  ? "bg-background text-foreground rounded-full px-4 py-1.5 text-xs font-semibold shadow-sm transition-colors"
+                  : "text-muted-foreground hover:text-foreground rounded-full bg-transparent px-4 py-1.5 text-xs font-medium transition-colors"
               }
             >
               Monthly
@@ -223,8 +238,8 @@ export function BillingPlansPanel({
               onClick={() => setInterval("year")}
               className={
                 interval === "year"
-                  ? "bg-background text-foreground rounded-full px-4 py-1.5 text-xs font-semibold shadow-sm"
-                  : "text-muted-foreground rounded-full px-4 py-1.5 text-xs font-medium"
+                  ? "bg-background text-foreground rounded-full px-4 py-1.5 text-xs font-semibold shadow-sm transition-colors"
+                  : "text-muted-foreground hover:text-foreground rounded-full bg-transparent px-4 py-1.5 text-xs font-medium transition-colors"
               }
             >
               Yearly (save ~17%)
@@ -233,7 +248,13 @@ export function BillingPlansPanel({
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
-          <div className="border-border/70 bg-muted/15 flex flex-col rounded-2xl border p-4">
+          <div
+            className={
+              plan === "free"
+                ? "border-primary/35 bg-primary/[0.04] flex flex-col rounded-2xl border p-4 shadow-[0_0_0_1px_rgba(99,102,241,0.12)]"
+                : "border-border/70 bg-muted/15 flex flex-col rounded-2xl border p-4"
+            }
+          >
             <div className="mb-2 flex items-center justify-between gap-2">
               <h3 className="font-heading text-lg font-semibold">Free</h3>
               {plan === "free" ? (
@@ -273,21 +294,47 @@ export function BillingPlansPanel({
               interval === "year"
                 ? `≈ ${formatInr(Math.round(effectiveMonthlyYearly(paid) * 10) / 10)} / mo effective · one ₹ invoice per year`
                 : "Paid monthly in ₹ INR";
-            const isCurrent =
-              plan === paid &&
-              billingInterval === interval &&
-              subscriptionStatus !== "none";
+            const isSamePlan = plan === paid && subscriptionStatus !== "none";
+            const isExactCurrent =
+              isSamePlan &&
+              (billingInterval === "month" || billingInterval === "year"
+                ? billingInterval === interval
+                : true);
+            const isSwitchCadence =
+              isSamePlan &&
+              (billingInterval === "month" || billingInterval === "year") &&
+              billingInterval !== interval;
             return (
               <div
                 key={paid}
-                className="border-border/70 from-primary/[0.04] flex flex-col rounded-2xl border bg-gradient-to-br to-transparent p-4"
+                className={
+                  isExactCurrent
+                    ? "border-primary/35 from-primary/[0.08] flex flex-col rounded-2xl border bg-gradient-to-br to-transparent p-4 shadow-[0_0_0_1px_rgba(99,102,241,0.12)]"
+                    : "border-border/70 from-primary/[0.04] flex flex-col rounded-2xl border bg-gradient-to-br to-transparent p-4"
+                }
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <h3 className="font-heading text-lg font-semibold">
                     {planLabel(paid)}
                   </h3>
-                  {isCurrent ? (
-                    <Badge className="font-normal">Current</Badge>
+                  {isExactCurrent ? (
+                    <div className="flex items-center gap-2">
+                      <Badge className="font-normal">Current</Badge>
+                      {orgIntervalLabel ? (
+                        <Badge variant="secondary" className="font-normal">
+                          {orgIntervalLabel}
+                        </Badge>
+                      ) : null}
+                    </div>
+                  ) : isSwitchCadence ? (
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="font-normal">
+                        Current · {orgIntervalLabel ?? "active"}
+                      </Badge>
+                      <Badge variant="outline" className="font-normal">
+                        Switch cadence
+                      </Badge>
+                    </div>
                   ) : (
                     <Badge variant="outline" className="font-normal">
                       <SparklesIcon className="mr-1 size-3" aria-hidden />
@@ -318,7 +365,7 @@ export function BillingPlansPanel({
                     !canManageBilling ||
                     !razorpayReady ||
                     busy !== null ||
-                    isCurrent ||
+                    isExactCurrent ||
                     (subscriptionStatus === "active" &&
                       plan !== "free" &&
                       paidPlanTier(paid) <= paidPlanTier(plan))
@@ -330,6 +377,10 @@ export function BillingPlansPanel({
                       <Loader2Icon className="size-4 animate-spin" />
                       Starting checkout…
                     </>
+                  ) : isSwitchCadence ? (
+                    interval === "year"
+                      ? "Switch to yearly"
+                      : "Switch to monthly"
                   ) : (
                     `Pay with Razorpay`
                   )}

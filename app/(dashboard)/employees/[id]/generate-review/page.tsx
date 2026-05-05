@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { GenerateReviewFromPeriodWizard } from "@/components/employees/generate-review-from-period-wizard";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { getOrgAccess } from "@/lib/org-context";
+import { getEmployeeLockState } from "@/lib/employee-lock";
 import type { EmployeeRow, ReviewCadence } from "@/types/database";
 
 function isReviewStitchable(raw: {
@@ -42,18 +43,21 @@ export default async function EmployeeGenerateReviewPage({
   const access = await getOrgAccess();
   if (!access) return null;
 
-  const { data: employeeRow, error: empErr } = await access.supabase
-    .from("employees")
-    .select("*")
-    .eq("id", id)
-    .eq("org_id", access.orgId)
-    .maybeSingle();
+  const [employeeRes] = await Promise.all([
+    access.supabase
+      .from("employees")
+      .select("*")
+      .eq("id", id)
+      .eq("org_id", access.orgId)
+      .maybeSingle(),
+  ]);
 
-  if (empErr || !employeeRow) {
+  if (employeeRes.error || !employeeRes.data) {
     notFound();
   }
 
-  const employee = employeeRow as EmployeeRow;
+  const employee = employeeRes.data as EmployeeRow;
+  const readOnly = (await getEmployeeLockState(access, employee.id)).locked;
 
   const cadenceParam = sp.cadence;
   const parsedCadence: ReviewCadence | null =
@@ -145,6 +149,7 @@ export default async function EmployeeGenerateReviewPage({
           employeeId={id}
           employeeName={employee.name}
           employeeJoinDate={employee.join_date}
+          readOnly={readOnly}
           defaultCadence={
             ((departmentRes.data?.review_cadence as ReviewCadence | null) ?? "quarterly")
           }

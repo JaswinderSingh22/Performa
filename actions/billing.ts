@@ -86,7 +86,7 @@ export async function createRazorpaySubscription(
   const { data: org, error: orgErr } = await access.supabase
     .from("organizations")
     .select(
-      "name, plan, subscription_status, razorpay_customer_id, razorpay_subscription_id",
+      "name, plan, subscription_status, billing_interval, razorpay_customer_id, razorpay_subscription_id",
     )
     .eq("id", access.orgId)
     .maybeSingle();
@@ -98,9 +98,17 @@ export async function createRazorpaySubscription(
   const currentPlan = normalizePlan(org.plan);
   const subscriptionActive = org.subscription_status === "active";
   const existingSubId = org.razorpay_subscription_id?.trim() ?? "";
+  const currentInterval = org.billing_interval === "month" || org.billing_interval === "year"
+    ? org.billing_interval
+    : null;
+  const switchingCadence =
+    subscriptionActive &&
+    currentPlan === targetPlanKey &&
+    currentInterval !== null &&
+    currentInterval !== parsed.data.interval;
 
   if (subscriptionActive && currentPlan !== "free") {
-    if (paidPlanTier(targetPlanKey) <= paidPlanTier(currentPlan)) {
+    if (!switchingCadence && paidPlanTier(targetPlanKey) <= paidPlanTier(currentPlan)) {
       return {
         ok: false,
         error:

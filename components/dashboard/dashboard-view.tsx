@@ -114,6 +114,9 @@ export function DashboardView({
 }: DashboardViewProps): ReactElement {
   const prefersReducedMotion = useReducedMotion() === true;
 
+  const scoredRate =
+    reviewCount > 0 ? Math.round((ratedReviewCount / reviewCount) * 100) : 0;
+
   const statCards = [
     {
       title: "Employees",
@@ -142,7 +145,7 @@ export function DashboardView({
     {
       title: "Reviews",
       value: String(reviewCount),
-      hint: "Total review records saved",
+      hint: `${ratedReviewCount} scored · ${scoredRate}% coverage`,
       icon: MessageSquareIcon,
       accent: "from-emerald-500/15 to-teal-500/10",
       iconClass: "text-emerald-600 dark:text-emerald-400",

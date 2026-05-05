@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { getOrgAccess, type OrgAccess } from "@/lib/org-context";
+import { assertEmployeeUnlocked } from "@/lib/employee-lock";
 import {
   employeeNoteCreateSchema,
   employeeNoteDeleteSchema,
@@ -56,6 +57,9 @@ export async function createEmployeeNote(
     return { ok: false as const, error: "Employee not found in your workspace." };
   }
 
+  const unlocked = await assertEmployeeUnlocked(access, parsed.data.employeeId);
+  if (!unlocked.ok) return { ok: false as const, error: unlocked.error };
+
   const { error } = await access.supabase.from("employee_notes").insert({
     employee_id: parsed.data.employeeId,
     org_id: access.orgId,
@@ -105,6 +109,9 @@ export async function updateEmployeeNote(
     return { ok: false as const, error: "Note not found or unavailable." };
   }
 
+  const unlocked = await assertEmployeeUnlocked(access, parsed.data.employeeId);
+  if (!unlocked.ok) return { ok: false as const, error: unlocked.error };
+
   const { error } = await access.supabase
     .from("employee_notes")
     .update({
@@ -143,6 +150,9 @@ export async function deleteEmployeeNote(
         "We could not load your workspace. Sign in again, or verify configuration.",
     };
   }
+
+  const unlocked = await assertEmployeeUnlocked(access, parsed.data.employeeId);
+  if (!unlocked.ok) return { ok: false as const, error: unlocked.error };
 
   const { error } = await access.supabase
     .from("employee_notes")

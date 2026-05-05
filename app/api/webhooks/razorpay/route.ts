@@ -127,18 +127,16 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   if (event === "subscription.completed" || event === "subscription.expired") {
-    // Terminal state: paid period is over; move org back to free.
+    // Terminal state: paid period is over; do NOT immediately downgrade.
+    // Grace handling is computed from subscription_current_end in app logic.
     if (!orgBySub?.id) {
       return new Response("ok", { status: 200 });
     }
     await admin
       .from("organizations")
       .update({
-        plan: "free",
-        subscription_status: statusStr || "cancelled",
-        billing_interval: null,
-        razorpay_subscription_id: null,
-        subscription_current_end: null,
+        subscription_status: statusStr || "expired",
+        subscription_current_end: periodEnd,
       })
       .eq("id", orgBySub.id)
       .eq("razorpay_subscription_id", subId);

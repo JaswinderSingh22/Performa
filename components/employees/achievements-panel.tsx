@@ -157,20 +157,24 @@ function AchievementFormDialog({
 export function AchievementsPanel({
   employeeId,
   achievements,
+  readOnly = false,
 }: {
   employeeId: string;
   achievements: AchievementRow[];
+  readOnly?: boolean;
 }): React.ReactElement {
   const router = useRouter();
   const [editorOpen, setEditorOpen] = React.useState(false);
   const [active, setActive] = React.useState<AchievementRow | null>(null);
 
   const openCreate = () => {
+    if (readOnly) return;
     setActive(null);
     setEditorOpen(true);
   };
 
   const openEdit = (row: AchievementRow) => {
+    if (readOnly) return;
     setActive(row);
     setEditorOpen(true);
   };
@@ -208,6 +212,12 @@ export function AchievementsPanel({
           variant="outline"
           className="gap-1"
           onClick={openCreate}
+          disabled={readOnly}
+          title={
+            readOnly
+              ? "This employee is locked because your workspace is over the seat limit."
+              : undefined
+          }
         >
           <PlusIcon className="size-3.5" />
           Add
@@ -238,6 +248,12 @@ export function AchievementsPanel({
                       variant="ghost"
                       aria-label="Edit achievement"
                       onClick={() => openEdit(row)}
+                      disabled={readOnly}
+                      title={
+                        readOnly
+                          ? "This employee is locked because your workspace is over the seat limit."
+                          : undefined
+                      }
                     >
                       <PencilIcon className="size-4" />
                     </Button>
@@ -247,6 +263,12 @@ export function AchievementsPanel({
                       variant="ghost"
                       aria-label="Delete achievement"
                       onClick={() => void onDelete(row)}
+                      disabled={readOnly}
+                      title={
+                        readOnly
+                          ? "This employee is locked because your workspace is over the seat limit."
+                          : undefined
+                      }
                     >
                       <Trash2Icon className="text-destructive size-4" />
                     </Button>

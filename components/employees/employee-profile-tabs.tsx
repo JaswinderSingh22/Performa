@@ -45,6 +45,7 @@ export function EmployeeProfileTabs({
   teams,
   departments,
   initialTab,
+  readOnly = false,
 }: {
   employee: EmployeeRow;
   achievements: AchievementRow[];
@@ -53,9 +54,13 @@ export function EmployeeProfileTabs({
   teams: { id: string; name: string }[];
   departments: { id: string; name: string }[];
   initialTab?: string;
+  readOnly?: boolean;
 }): ReactElement {
   const prefersReducedMotion = useReducedMotion() === true;
   const defaultTab = parseTab(initialTab);
+  const lockTitle = readOnly
+    ? "This employee is locked because your workspace is over the seat limit."
+    : undefined;
 
   const panelMotion = prefersReducedMotion
     ? {}
@@ -142,20 +147,34 @@ export function EmployeeProfileTabs({
               >
                 Insights
               </Link>
-              <Link
-                href={`/employees/${employee.id}/generate-review`}
-                className={cn(
-                  buttonVariants({ variant: "secondary", size: "sm" }),
-                  "rounded-lg shadow-sm no-underline",
-                )}
-                title="Combine notes, achievements, and prior reviews for a period"
-              >
-                Roll-up review
-              </Link>
+              {readOnly ? (
+                <span
+                  className={cn(
+                    buttonVariants({ variant: "secondary", size: "sm" }),
+                    "rounded-lg shadow-sm no-underline cursor-not-allowed opacity-60",
+                  )}
+                  aria-disabled
+                  title={lockTitle}
+                >
+                  Roll-up review
+                </span>
+              ) : (
+                <Link
+                  href={`/employees/${employee.id}/generate-review`}
+                  className={cn(
+                    buttonVariants({ variant: "secondary", size: "sm" }),
+                    "rounded-lg shadow-sm no-underline",
+                  )}
+                  title="Combine notes, achievements, and prior reviews for a period"
+                >
+                  Roll-up review
+                </Link>
+              )}
               <EmployeeProfileActions
                 employee={employee}
                 teams={teams}
                 departments={departments}
+                readOnly={readOnly}
               />
             </div>
           </div>
@@ -206,6 +225,7 @@ export function EmployeeProfileTabs({
                     key={employee.id}
                     employeeId={employee.id}
                     achievements={achievements}
+                    readOnly={readOnly}
                   />
                 </motion.div>
               </TabsContent>
@@ -216,6 +236,7 @@ export function EmployeeProfileTabs({
                     key={employee.id}
                     employeeId={employee.id}
                     notes={notes}
+                    readOnly={readOnly}
                   />
                 </motion.div>
               </TabsContent>
@@ -226,6 +247,7 @@ export function EmployeeProfileTabs({
                     key={employee.id}
                     employeeId={employee.id}
                     reviews={reviews}
+                    readOnly={readOnly}
                   />
                 </motion.div>
               </TabsContent>

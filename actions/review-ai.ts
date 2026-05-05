@@ -4,7 +4,9 @@ import { getOrgAccess } from "@/lib/org-context";
 import {
   assertAiAssistAllowedForEmployee,
   recordAiAssistUsage,
-} from "@/lib/billing/ai-limits";import {
+} from "@/lib/billing/ai-limits";
+import { assertEmployeeUnlocked } from "@/lib/employee-lock";
+import {
   achievementInPeriod,
   noteInPeriod,
 } from "@/lib/employee-period-evidence";
@@ -67,6 +69,9 @@ export async function assistReviewFromPeriod(
   if (!access) {
     return { ok: false, error: "We could not load your workspace." };
   }
+
+  const unlocked = await assertEmployeeUnlocked(access, parsed.data.employeeId);
+  if (!unlocked.ok) return { ok: false, error: unlocked.error };
 
   const { data: employee } = await access.supabase
     .from("employees")

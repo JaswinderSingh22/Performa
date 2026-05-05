@@ -51,6 +51,7 @@ import {
   normalizeChecklistFromUnknown,
   ratingFromChecklist,
 } from "@/lib/review-checklist";
+import { formatIsoDate } from "@/lib/format-dates";
 
 const DEFAULT_DIMENSION_ROWS: Pick<
   ReviewFieldsFormValues["dimensions"][number],
@@ -563,20 +564,24 @@ function ReviewFormDialog({
 export function ReviewsPanel({
   employeeId,
   reviews,
+  readOnly = false,
 }: {
   employeeId: string;
   reviews: ReviewWithDimensions[];
+  readOnly?: boolean;
 }): React.ReactElement {
   const router = useRouter();
   const [editorOpen, setEditorOpen] = React.useState(false);
   const [active, setActive] = React.useState<ReviewWithDimensions | null>(null);
 
   const openCreate = (): void => {
+    if (readOnly) return;
     setActive(null);
     setEditorOpen(true);
   };
 
   const openEdit = (row: ReviewWithDimensions): void => {
+    if (readOnly) return;
     setActive(row);
     setEditorOpen(true);
   };
@@ -618,6 +623,12 @@ export function ReviewsPanel({
             variant="outline"
             className="gap-1"
             onClick={openCreate}
+            disabled={readOnly}
+            title={
+              readOnly
+                ? "This employee is locked because your workspace is over the seat limit."
+                : undefined
+            }
           >
             <PlusIcon className="size-3.5" aria-hidden />
             New review
@@ -664,10 +675,7 @@ export function ReviewsPanel({
                           ) : null}
                           <span className="text-muted-foreground text-xs">
                             Started{" "}
-                            {new Date(row.created_at).toLocaleDateString(
-                              undefined,
-                              { dateStyle: "medium" },
-                            )}
+                            {formatIsoDate(row.created_at)}
                           </span>
                         </div>
                       </div>
@@ -678,6 +686,12 @@ export function ReviewsPanel({
                           variant="ghost"
                           aria-label="Edit review"
                           onClick={() => openEdit(row)}
+                          disabled={readOnly}
+                          title={
+                            readOnly
+                              ? "This employee is locked because your workspace is over the seat limit."
+                              : undefined
+                          }
                         >
                           <PencilIcon className="size-4" />
                         </Button>
@@ -687,6 +701,12 @@ export function ReviewsPanel({
                           variant="ghost"
                           aria-label="Delete review"
                           onClick={() => void onDelete(row)}
+                          disabled={readOnly}
+                          title={
+                            readOnly
+                              ? "This employee is locked because your workspace is over the seat limit."
+                              : undefined
+                          }
                         >
                           <Trash2Icon className="text-destructive size-4" />
                         </Button>
@@ -716,9 +736,11 @@ export function ReviewsPanel({
 export function RollupsPanel({
   employeeId,
   reviews,
+  readOnly = false,
 }: {
   employeeId: string;
   reviews: ReviewWithDimensions[];
+  readOnly?: boolean;
 }): React.ReactElement {
   const router = useRouter();
   const [editorOpen, setEditorOpen] = React.useState(false);
@@ -741,6 +763,10 @@ export function RollupsPanel({
     router.refresh();
   };
 
+  const lockTitle = readOnly
+    ? "This employee is locked because your workspace is over the seat limit."
+    : undefined;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
@@ -750,17 +776,31 @@ export function RollupsPanel({
             Period-based summaries generated from notes, achievements, and prior reviews.
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          className="gap-1"
-          render={<Link href={`/employees/${employeeId}/generate-review`} />}
-          nativeButton={false}
-        >
-          <CalendarRangeIcon className="size-3.5" aria-hidden />
-          New roll-up
-        </Button>
+        {readOnly ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="gap-1 opacity-60 cursor-not-allowed"
+            disabled
+            title={lockTitle}
+          >
+            <CalendarRangeIcon className="size-3.5" aria-hidden />
+            New roll-up
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="gap-1"
+            render={<Link href={`/employees/${employeeId}/generate-review`} />}
+            nativeButton={false}
+          >
+            <CalendarRangeIcon className="size-3.5" aria-hidden />
+            New roll-up
+          </Button>
+        )}
       </div>
       {rollups.length === 0 ? (
         <p className="text-muted-foreground text-sm">
@@ -793,9 +833,16 @@ export function RollupsPanel({
                         variant="ghost"
                         aria-label="Edit roll-up"
                         onClick={() => {
+                          if (readOnly) return;
                           setActive(row);
                           setEditorOpen(true);
                         }}
+                        disabled={readOnly}
+                        title={
+                          readOnly
+                            ? "This employee is locked because your workspace is over the seat limit."
+                            : undefined
+                        }
                       >
                         <PencilIcon className="size-4" />
                       </Button>
@@ -805,6 +852,12 @@ export function RollupsPanel({
                         variant="ghost"
                         aria-label="Delete roll-up"
                         onClick={() => void onDelete(row)}
+                        disabled={readOnly}
+                        title={
+                          readOnly
+                            ? "This employee is locked because your workspace is over the seat limit."
+                            : undefined
+                        }
                       >
                         <Trash2Icon className="text-destructive size-4" />
                       </Button>

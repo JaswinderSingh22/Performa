@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import type { OrgAccess } from "@/lib/org-context";
 import { getOrgAccess } from "@/lib/org-context";
+import { assertEmployeeUnlocked } from "@/lib/employee-lock";
 import {
   reviewCreateSchema,
   reviewDeleteSchema,
@@ -120,6 +121,9 @@ export async function createReview(
     };
   }
 
+  const unlocked = await assertEmployeeUnlocked(access, parsed.data.employeeId);
+  if (!unlocked.ok) return { ok: false, error: unlocked.error };
+
   const ratingStored = resolveStoredReviewRating(
     parsed.data.checklist,
     parsed.data.dimensions,
@@ -211,6 +215,9 @@ export async function updateReview(
     };
   }
 
+  const unlocked = await assertEmployeeUnlocked(access, parsed.data.employeeId);
+  if (!unlocked.ok) return { ok: false, error: unlocked.error };
+
   const ratingStored = resolveStoredReviewRating(
     parsed.data.checklist,
     parsed.data.dimensions,
@@ -265,6 +272,9 @@ export async function deleteReview(
   if (!access) {
     return { ok: false, error: "We could not load your workspace." };
   }
+
+  const unlocked = await assertEmployeeUnlocked(access, parsed.data.employeeId);
+  if (!unlocked.ok) return { ok: false, error: unlocked.error };
 
   const { error } = await access.supabase
     .from("reviews")

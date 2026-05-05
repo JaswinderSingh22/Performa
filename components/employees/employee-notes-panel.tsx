@@ -34,6 +34,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import type { EmployeeNoteRow } from "@/types/database";
 import { easingOut } from "@/lib/motion-variants";
+import { formatIsoDate } from "@/lib/format-dates";
 import {
   employeeNoteFieldsSchema,
   type EmployeeNoteFieldsFormValues,
@@ -152,22 +153,18 @@ function NoteFormDialog({
 }
 
 function formatTs(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  } catch {
-    return iso;
-  }
+  // Deterministic string to avoid hydration mismatches across locales/timezones.
+  return formatIsoDate(iso);
 }
 
 export function EmployeeNotesPanel({
   employeeId,
   notes,
+  readOnly = false,
 }: {
   employeeId: string;
   notes: EmployeeNoteRow[];
+  readOnly?: boolean;
 }): ReactElement {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion() === true;
@@ -215,9 +212,16 @@ export function EmployeeNotesPanel({
           variant="outline"
           className="gap-1 rounded-xl shadow-sm"
           onClick={() => {
+            if (readOnly) return;
             setActive(null);
             setEditorOpen(true);
           }}
+          disabled={readOnly}
+          title={
+            readOnly
+              ? "This employee is locked because your workspace is over the seat limit."
+              : undefined
+          }
         >
           <PlusIcon className="size-3.5" aria-hidden />
           Add note
@@ -264,9 +268,16 @@ export function EmployeeNotesPanel({
                       variant="ghost"
                       aria-label="Edit note"
                       onClick={() => {
+                        if (readOnly) return;
                         setActive(row);
                         setEditorOpen(true);
                       }}
+                      disabled={readOnly}
+                      title={
+                        readOnly
+                          ? "This employee is locked because your workspace is over the seat limit."
+                          : undefined
+                      }
                     >
                       <PencilIcon className="size-4" />
                     </Button>
@@ -276,6 +287,12 @@ export function EmployeeNotesPanel({
                       variant="ghost"
                       aria-label="Delete note"
                       onClick={() => void onDelete(row)}
+                      disabled={readOnly}
+                      title={
+                        readOnly
+                          ? "This employee is locked because your workspace is over the seat limit."
+                          : undefined
+                      }
                     >
                       <Trash2Icon className="text-destructive size-4" />
                     </Button>

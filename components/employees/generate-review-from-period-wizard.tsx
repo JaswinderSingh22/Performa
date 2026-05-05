@@ -86,6 +86,7 @@ export function GenerateReviewFromPeriodWizard({
   employeeId,
   employeeName,
   employeeJoinDate,
+  readOnly = false,
   defaultCadence,
   quarterStartMonth,
   lockedPeriod,
@@ -95,6 +96,7 @@ export function GenerateReviewFromPeriodWizard({
   employeeId: string;
   employeeName: string;
   employeeJoinDate: string | null;
+  readOnly?: boolean;
   defaultCadence: ReviewCadence;
   quarterStartMonth: number;
   lockedPeriod?: {
@@ -108,6 +110,10 @@ export function GenerateReviewFromPeriodWizard({
   contextCounts: { achievements: number; notes: number; reviews: number };
 }): ReactElement {
   const router = useRouter();
+
+  const lockedReason = readOnly
+    ? "This employee is locked because your workspace is over the seat limit. Upgrade or remove employees to unlock roll-ups."
+    : null;
 
   const canUseAi =
     contextCounts.achievements + contextCounts.notes + contextCounts.reviews > 0;
@@ -322,6 +328,10 @@ export function GenerateReviewFromPeriodWizard({
   };
 
   const continueFromSetup = (): void => {
+    if (readOnly) {
+      setClientError(lockedReason);
+      return;
+    }
     if (!validateSetup()) return;
     setClientError(null);
     if (draftMode === "manual") {
@@ -344,6 +354,10 @@ export function GenerateReviewFromPeriodWizard({
   };
 
   const runAi = async (): Promise<void> => {
+    if (readOnly) {
+      setClientError(lockedReason);
+      return;
+    }
     setClientError(null);
     setAiBusy(true);
     try {
@@ -395,6 +409,10 @@ export function GenerateReviewFromPeriodWizard({
   };
 
   const saveDraft = async (): Promise<void> => {
+    if (readOnly) {
+      setClientError(lockedReason);
+      return;
+    }
     setClientError(null);
 
     const t = refineTitle.trim();
@@ -491,6 +509,11 @@ export function GenerateReviewFromPeriodWizard({
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
+      {readOnly ? (
+        <p className="border-border/60 bg-muted/25 text-muted-foreground rounded-xl border px-4 py-3 text-sm leading-relaxed">
+          {lockedReason}
+        </p>
+      ) : null}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <Link
           href={`/employees/${employeeId}/insights`}
@@ -810,8 +833,9 @@ export function GenerateReviewFromPeriodWizard({
                 type="button"
                 size="lg"
                 className="gap-2 rounded-xl px-6"
-                disabled={setupContinueDisabled}
+                disabled={setupContinueDisabled || readOnly}
                 onClick={() => continueFromSetup()}
+                title={readOnly ? lockedReason ?? undefined : undefined}
               >
                 {evidenceBusy ? (
                   <>
@@ -965,8 +989,9 @@ export function GenerateReviewFromPeriodWizard({
                   type="button"
                   size="lg"
                   className="gap-2 rounded-xl px-6"
-                  disabled={aiBusy}
+                  disabled={aiBusy || readOnly}
                   onClick={() => void runAi()}
+                  title={readOnly ? lockedReason ?? undefined : undefined}
                 >
                   {aiBusy ? (
                     <>
@@ -1148,8 +1173,9 @@ export function GenerateReviewFromPeriodWizard({
                 type="button"
                 size="lg"
                 className="rounded-xl px-8"
-                disabled={saveBusy}
+                disabled={saveBusy || readOnly}
                 onClick={() => void saveDraft()}
+                title={readOnly ? lockedReason ?? undefined : undefined}
               >
                 {saveBusy ? (
                   <>

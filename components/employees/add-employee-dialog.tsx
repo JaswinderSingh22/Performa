@@ -28,9 +28,13 @@ type TeamOption = { id: string; name: string };
 export function AddEmployeeDialog({
   teams,
   departments,
+  disabled = false,
+  disabledReason,
 }: {
   teams: TeamOption[];
   departments: TeamOption[];
+  disabled?: boolean;
+  disabledReason?: string | null;
 }): React.ReactElement {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -60,7 +64,13 @@ export function AddEmployeeDialog({
 
   return (
     <>
-      <Button type="button" className="gap-1" onClick={() => setOpen(true)}>
+      <Button
+        type="button"
+        className="gap-1"
+        onClick={() => setOpen(true)}
+        disabled={disabled}
+        title={disabled ? disabledReason ?? "Employee limit reached." : undefined}
+      >
         <PlusIcon className="size-4" />
         Add employee
       </Button>

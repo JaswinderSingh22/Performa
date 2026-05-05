@@ -22,6 +22,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { formatIsoDate, formatIsoDateRange } from "@/lib/format-dates";
 import { InsightsOverallRating } from "@/components/employees/insights-overall-rating";
 import { InsightsPerformanceChart } from "@/components/employees/insights-performance-chart";
 import { AchievementsPanel } from "@/components/employees/achievements-panel";
@@ -79,17 +80,8 @@ function teaser(text: string | null | undefined, max = 180): string {
 }
 
 function formatIsoLocalMedium(iso: string): string {
-  const parts = iso.slice(0, 10).split("-");
-  if (parts.length !== 3) return iso;
-  const y = Number(parts[0]);
-  const mo = Number(parts[1]);
-  const d = Number(parts[2]);
-  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) {
-    return iso;
-  }
-  return new Date(y, mo - 1, d).toLocaleDateString(undefined, {
-    dateStyle: "medium",
-  });
+  // Deterministic string to avoid hydration mismatches across locales/timezones.
+  return formatIsoDate(iso);
 }
 
 function isWithinRange(dateIso: string, fromIso: string, toIso: string): boolean {
@@ -115,6 +107,7 @@ export function EmployeeInsightsView({
   orgReviewCadence,
   orgQuarterStartMonth,
   initialTab,
+  readOnly = false,
 }: {
   employee: EmployeeRow;
   achievements: AchievementRow[];
@@ -123,6 +116,7 @@ export function EmployeeInsightsView({
   orgReviewCadence: ReviewCadence;
   orgQuarterStartMonth: number;
   initialTab?: string;
+  readOnly?: boolean;
 }): ReactElement {
   const tab =
     initialTab === "achievements" ||
@@ -206,7 +200,7 @@ export function EmployeeInsightsView({
     overallDateSubtitle =
       first.sortKey === last.sortKey
         ? formatIsoLocalMedium(first.sortKey)
-        : `${formatIsoLocalMedium(first.sortKey)} – ${formatIsoLocalMedium(last.sortKey)}`;
+        : formatIsoDateRange(first.sortKey, last.sortKey);
   } else if (
     overallWindow === "all" &&
     overallSummary.periodsWithScores > 0 &&
@@ -220,7 +214,7 @@ export function EmployeeInsightsView({
     overallDateSubtitle =
       overallSummary.rangeFrom === overallSummary.rangeTo
         ? formatIsoLocalMedium(overallSummary.rangeFrom)
-        : `${formatIsoLocalMedium(overallSummary.rangeFrom)} – ${formatIsoLocalMedium(overallSummary.rangeTo)}`;
+        : formatIsoDateRange(overallSummary.rangeFrom, overallSummary.rangeTo);
   }
 
   const scheduleCadence = cadenceOrDefault(orgReviewCadence);
@@ -442,7 +436,7 @@ export function EmployeeInsightsView({
                           No context yet
                         </span>
                       ) : null}
-                      {hasEvidence ? (
+                      {hasEvidence && !readOnly ? (
                         <Link
                           href={`/employees/${employee.id}/generate-review?cadence=${scheduleCadence}&periodKey=${encodeURIComponent(slot.key)}&from=${slot.from}&to=${slot.to}&label=${encodeURIComponent(slot.label)}`}
                           className={cn(
@@ -456,7 +450,11 @@ export function EmployeeInsightsView({
                         <button
                           type="button"
                           disabled
-                          title="No notes, achievements, or prior reviews exist for this roll-up window."
+                          title={
+                            readOnly
+                              ? "This employee is locked because your workspace is over the seat limit."
+                              : "No notes, achievements, or prior reviews exist for this roll-up window."
+                          }
                           className={cn(
                             buttonVariants({ variant: "secondary", size: "sm" }),
                             "shrink-0 cursor-not-allowed rounded-lg opacity-55",
@@ -559,10 +557,17 @@ export function EmployeeInsightsView({
             </p>
             <Link
               href={`/employees/${employee.id}/generate-review`}
+              aria-disabled={readOnly}
               className={cn(
                 buttonVariants({ variant: "default", size: "sm" }),
                 "mt-2 w-full justify-center rounded-xl no-underline",
+                readOnly ? "pointer-events-none opacity-60" : null,
               )}
+              title={
+                readOnly
+                  ? "This employee is locked because your workspace is over the seat limit."
+                  : undefined
+              }
             >
               Roll-up from period
             </Link>
@@ -597,9 +602,7 @@ export function EmployeeInsightsView({
                       className="border-border/60 bg-muted/15 rounded-xl border px-4 py-3"
                     >
                       <p className="text-muted-foreground text-xs tabular-nums">
-                        {new Date(n.created_at).toLocaleDateString(undefined, {
-                          dateStyle: "medium",
-                        })}
+                        {formatIsoDate(n.created_at)}
                       </p>
                       <p className="mt-1 line-clamp-3 text-sm leading-relaxed whitespace-pre-wrap">
                         {n.body.trim() || "(empty)"}
@@ -669,7 +672,16 @@ export function EmployeeInsightsView({
                 No reviews yet.{" "}
                 <Link
                   href={`/employees/${employee.id}/generate-review`}
-                  className="text-primary font-medium underline-offset-4 hover:underline"
+                  className={cn(
+                    "text-primary font-medium underline-offset-4 hover:underline",
+                    readOnly ? "pointer-events-none opacity-60" : null,
+                  )}
+                  aria-disabled={readOnly}
+                  title={
+                    readOnly
+                      ? "This employee is locked because your workspace is over the seat limit."
+                      : undefined
+                  }
                 >
                   Start a roll-up review
                 </Link>{" "}
@@ -766,22 +778,22 @@ export function EmployeeInsightsView({
           <div className="p-4 md:p-6">
             <TabsContent value="achievements" keepMounted={false} className="m-0">
               <div className="max-h-[560px] overflow-y-auto pr-1">
-              <AchievementsPanel employeeId={employee.id} achievements={achievements} />
+              <AchievementsPanel employeeId={employee.id} achievements={achievements} readOnly={readOnly} />
               </div>
             </TabsContent>
             <TabsContent value="notes" keepMounted={false} className="m-0">
               <div className="max-h-[560px] overflow-y-auto pr-1">
-              <EmployeeNotesPanel employeeId={employee.id} notes={notes} />
+              <EmployeeNotesPanel employeeId={employee.id} notes={notes} readOnly={readOnly} />
               </div>
             </TabsContent>
             <TabsContent value="reviews" keepMounted={false} className="m-0">
               <div className="max-h-[560px] overflow-y-auto pr-1">
-              <ReviewsPanel employeeId={employee.id} reviews={reviews} />
+              <ReviewsPanel employeeId={employee.id} reviews={reviews} readOnly={readOnly} />
               </div>
             </TabsContent>
             <TabsContent value="rollups" keepMounted={false} className="m-0">
               <div className="max-h-[560px] overflow-y-auto pr-1">
-              <RollupsPanel employeeId={employee.id} reviews={reviews} />
+              <RollupsPanel employeeId={employee.id} reviews={reviews} readOnly={readOnly} />
               </div>
             </TabsContent>
           </div>

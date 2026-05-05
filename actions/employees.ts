@@ -10,6 +10,8 @@ import {
   normalizePlan,
   planLabel,
 } from "@/lib/plans";
+import { getEffectivePlanFromOrg } from "@/lib/billing/getBillingState";
+import { assertEmployeeUnlocked } from "@/lib/employee-lock";
 
 import { isUniqueViolation } from "@/types/database";
 import {
@@ -66,7 +68,7 @@ export async function createEmployee(
         .eq("org_id", access.orgId),
       access.supabase
         .from("organizations")
-        .select("plan")
+        .select("id, plan, subscription_status, subscription_current_end, razorpay_subscription_id")
         .eq("id", access.orgId)
         .maybeSingle(),
     ]);
@@ -75,7 +77,9 @@ export async function createEmployee(
     return { ok: false, error: cntError.message };
   }
 
-  const plan = normalizePlan(orgPlanRow?.plan);
+  const plan = normalizePlan(
+    orgPlanRow ? getEffectivePlanFromOrg(orgPlanRow) : undefined,
+  );
   const seatCap = getMaxEmployees(plan);
   if (!isUnlimitedLimit(seatCap) && (existingCount ?? 0) >= seatCap) {
     return {
@@ -185,6 +189,9 @@ export async function updateEmployee(
     return { ok: false, error: "Employee not found in your workspace." };
   }
 
+  const unlocked = await assertEmployeeUnlocked(access, employeeId);
+  if (!unlocked.ok) return { ok: false, error: unlocked.error };
+
   let nextTeamName = "";
   let nextDepartment = parsed.data.department.trim() ? parsed.data.department.trim() : "";
   const teamInput = parsed.data.team_name.trim();
@@ -261,6 +268,9 @@ export async function deleteEmployee(
     return { ok: false, error: "Employee not found in your workspace." };
   }
 
+  const unlocked = await assertEmployeeUnlocked(access, parsed.data.employeeId);
+  if (!unlocked.ok) return { ok: false, error: unlocked.error };
+
   const { error } = await access.supabase
     .from("employees")
     .delete()
@@ -311,6 +321,9 @@ export async function updateEmployeeReviewCadence(
   if (!existing) {
     return { ok: false, error: "Employee not found in your workspace." };
   }
+
+  const unlocked = await assertEmployeeUnlocked(access, parsed.data.employeeId);
+  if (!unlocked.ok) return { ok: false, error: unlocked.error };
 
   const { error } = await access.supabase
     .from("employees")

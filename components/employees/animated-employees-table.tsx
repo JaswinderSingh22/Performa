@@ -43,11 +43,17 @@ function CountBadge({ value }: { value: number }): ReactElement {
 
 export function AnimatedEmployeesTable({
   employees,
+  lockedEmployeeIds,
 }: {
   employees: EmployeeListRow[];
+  lockedEmployeeIds?: string[];
 }): ReactElement {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion() === true;
+  const lockedSet = React.useMemo(
+    () => new Set((lockedEmployeeIds ?? []).filter(Boolean)),
+    [lockedEmployeeIds],
+  );
   const [departmentFilter, setDepartmentFilter] = React.useState("all");
   const [teamFilter, setTeamFilter] = React.useState("all");
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -222,7 +228,9 @@ export function AnimatedEmployeesTable({
             <div className="max-h-[520px] overflow-y-auto">
               <Table className="border-separate border-spacing-0">
                 <TableBody>
-                  {visibleEmployees.map((employee, index) => (
+                  {visibleEmployees.map((employee, index) => {
+                    const isLocked = lockedSet.has(employee.id);
+                    return (
                     <MotionTableRow
                       key={employee.id}
                       {...(prefersReducedMotion
@@ -236,7 +244,10 @@ export function AnimatedEmployeesTable({
                               delay: 0.03 + index * 0.04,
                             },
                           })}
-                      className="group hover:bg-muted/20 cursor-pointer border-b border-border/65"
+                      className={cn(
+                        "group hover:bg-muted/20 cursor-pointer border-b border-border/65",
+                        isLocked ? "opacity-80" : null,
+                      )}
                       role="button"
                       tabIndex={0}
                       onClick={() => router.push(`/employees/${employee.id}/insights`)}
@@ -257,9 +268,16 @@ export function AnimatedEmployeesTable({
                         {index + 1}
                       </TableCell>
                       <TableCell className="w-[170px] px-4 py-3 font-medium">
-                        <span className="text-foreground group-hover:text-primary underline-offset-4 transition-colors">
-                          {employee.name}
-                        </span>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="text-foreground group-hover:text-primary truncate underline-offset-4 transition-colors">
+                            {employee.name}
+                          </span>
+                          {isLocked ? (
+                            <span className="border-border/60 bg-muted/50 text-muted-foreground shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold">
+                              Locked
+                            </span>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground w-[220px] truncate px-4 py-3">
                         {employee.email}
@@ -298,7 +316,8 @@ export function AnimatedEmployeesTable({
                         <CountBadge value={employee.notes_count} />
                       </TableCell>
                     </MotionTableRow>
-                  ))}
+                    );
+                  })}
                   {visibleEmployees.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={10} className="text-muted-foreground py-10 text-center text-sm">

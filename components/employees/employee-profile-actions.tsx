@@ -45,10 +45,12 @@ export function EmployeeProfileActions({
   employee,
   teams,
   departments,
+  readOnly = false,
 }: {
   employee: EmployeeRow;
   teams: TeamOption[];
   departments: TeamOption[];
+  readOnly?: boolean;
 }): React.ReactElement {
   const router = useRouter();
   const [editOpen, setEditOpen] = React.useState(false);
@@ -100,6 +102,12 @@ export function EmployeeProfileActions({
         size="sm"
         className="gap-1 rounded-lg shadow-sm"
         onClick={() => setEditOpen(true)}
+        disabled={readOnly}
+        title={
+          readOnly
+            ? "This employee is locked because your workspace is over the seat limit."
+            : undefined
+        }
       >
         <PencilIcon className="size-3.5" aria-hidden />
         Edit
@@ -110,6 +118,12 @@ export function EmployeeProfileActions({
         size="sm"
         className="border-destructive/30 text-destructive hover:bg-destructive/12 gap-1 rounded-lg shadow-sm"
         onClick={() => setDeleteOpen(true)}
+        disabled={readOnly}
+        title={
+          readOnly
+            ? "This employee is locked because your workspace is over the seat limit."
+            : undefined
+        }
       >
         <Trash2Icon className="size-3.5" aria-hidden />
         Delete

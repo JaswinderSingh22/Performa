@@ -7,6 +7,7 @@ import { EmployeeInsightsView } from "@/components/employees/employee-insights-v
 import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { Button } from "@/components/ui/button";
 import { getOrgAccess } from "@/lib/org-context";
+import { getEmployeeLockState } from "@/lib/employee-lock";
 import type { AchievementRow } from "@/types/database";
 import type { EmployeeNoteRow } from "@/types/database";
 import type { EmployeeRow } from "@/types/database";
@@ -84,6 +85,11 @@ export default async function EmployeeInsightsPage({
   }
 
   const employeeRow = employee as EmployeeRow;
+  const lockState = await getEmployeeLockState(access, employeeRow.id);
+  const locked = lockState.locked;
+  const lockTitle = locked
+    ? "This employee is locked because your workspace is over the seat limit."
+    : undefined;
 
   const employeeDepartment = (departmentsRes.data ?? []).find(
     (d) =>
@@ -107,21 +113,34 @@ export default async function EmployeeInsightsPage({
             >
               All employees
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              render={<Link href={`/employees/${id}/generate-review`} />}
-              nativeButton={false}
-              className="rounded-lg shadow-sm"
-            >
-              Roll-up review
-            </Button>
+            {locked ? (
+              <Button
+                type="button"
+                size="sm"
+                className="rounded-lg shadow-sm cursor-not-allowed opacity-60"
+                disabled
+                title={lockTitle}
+              >
+                Roll-up review
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                render={<Link href={`/employees/${id}/generate-review`} />}
+                nativeButton={false}
+                className="rounded-lg shadow-sm"
+              >
+                Roll-up review
+              </Button>
+            )}
             <EmployeeProfileActions
               employee={employeeRow}
               teams={(teamsRes.data ?? []) as { id: string; name: string }[]}
               departments={
                 (departmentsRes.data ?? []) as { id: string; name: string }[]
               }
+              readOnly={locked}
             />
           </div>
         }
@@ -142,6 +161,7 @@ export default async function EmployeeInsightsPage({
           }
           orgQuarterStartMonth={employeeDepartment?.quarter_start_month ?? 1}
           initialTab={sp.tab}
+          readOnly={locked}
         />
       </main>
     </>

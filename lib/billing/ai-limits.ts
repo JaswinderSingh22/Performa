@@ -7,6 +7,7 @@ import {
   normalizePlan,
   type PlanId,
 } from "@/lib/plans";
+import { computeBillingState } from "@/lib/billing/getBillingState";
 
 /** UTC calendar month bucket YYYY-MM */
 export function utcMonthKey(d = new Date()): string {
@@ -24,7 +25,7 @@ export async function assertAiAssistAllowedForEmployee(
   void employeeId;
   const { data: org, error: orgErr } = await access.supabase
     .from("organizations")
-    .select("plan")
+    .select("id, plan, subscription_status, subscription_current_end, razorpay_subscription_id")
     .eq("id", access.orgId)
     .maybeSingle();
 
@@ -35,7 +36,8 @@ export async function assertAiAssistAllowedForEmployee(
     };
   }
 
-  const plan: PlanId = normalizePlan(org.plan);
+  const billing = computeBillingState(org);
+  const plan: PlanId = normalizePlan(billing.effectivePlan);
   const limits = getInternalUsageLimit(plan);
 
   const monthKey = utcMonthKey();
@@ -56,6 +58,20 @@ export async function assertAiAssistAllowedForEmployee(
       limit: limits.orgMonthlyCap,
       timestamp: new Date().toISOString(),
     });
+  }
+
+  if (billing.kind === "grace" && !isUnlimitedLimit(limits.orgMonthlyCap)) {
+    const softThrottleAt = Math.floor(limits.orgMonthlyCap * 0.5);
+    if (orgMonthlyTotal >= softThrottleAt) {
+      console.warn("grace throttling signal", {
+        org_id: access.orgId,
+        plan,
+        usage: orgMonthlyTotal,
+        limit: limits.orgMonthlyCap,
+        softThrottleAt,
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 
   if (!isUnlimitedLimit(limits.orgMonthlyCap) && orgMonthlyTotal > limits.orgMonthlyCap * 2) {

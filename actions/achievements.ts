@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { getOrgAccess } from "@/lib/org-context";
+import { assertEmployeeUnlocked } from "@/lib/employee-lock";
 import {
   achievementCreateSchema,
   achievementDeleteSchema,
@@ -58,6 +59,9 @@ export async function createAchievement(
     };
   }
 
+  const unlocked = await assertEmployeeUnlocked(access, employeeId);
+  if (!unlocked.ok) return { ok: false, error: unlocked.error };
+
   const desc = parsed.data.description?.trim();
   const { error } = await access.supabase.from("achievements").insert({
     employee_id: employeeId,
@@ -88,6 +92,9 @@ export async function updateAchievement(
   if (!access) {
     return { ok: false, error: "No organization context configured." };
   }
+
+  const unlocked = await assertEmployeeUnlocked(access, parsed.data.employeeId);
+  if (!unlocked.ok) return { ok: false, error: unlocked.error };
 
   if (parsed.data.achievement_date) {
     const t = Date.parse(parsed.data.achievement_date);
@@ -130,6 +137,9 @@ export async function deleteAchievement(
   if (!access) {
     return { ok: false, error: "No organization context configured." };
   }
+
+  const unlocked = await assertEmployeeUnlocked(access, parsed.data.employeeId);
+  if (!unlocked.ok) return { ok: false, error: unlocked.error };
 
   const { error } = await access.supabase
     .from("achievements")
