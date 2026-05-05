@@ -87,7 +87,7 @@ export function LoginForm() {
           </CardDescription>
         </CardHeader>
         <form onSubmit={onSubmit}>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 py-2">
             <div className="space-y-4">
               <GoogleOAuthButton
                 redirectNext={next}

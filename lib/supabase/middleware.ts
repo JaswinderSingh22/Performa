@@ -84,18 +84,8 @@ export async function updateSession(req: NextRequest): Promise<NextResponse> {
   }
 
   const isHome = pathname === "/";
-
   if (isHome) {
-    if (!user) {
-      if (devBypass) {
-        return redirectPreservingCookies(req, res, "/dashboard");
-      }
-      return redirectPreservingCookies(req, res, "/login");
-    }
-    if (!hasOrg) {
-      return redirectPreservingCookies(req, res, "/onboarding");
-    }
-    return redirectPreservingCookies(req, res, "/dashboard");
+    return res;
   }
 
   if (isOnboarding) {
