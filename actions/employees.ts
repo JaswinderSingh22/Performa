@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getOrgAccess } from "@/lib/org-context";
-import { normalizePlan, PLAN_LIMITS, planLabel } from "@/lib/plans";
+import { isUnlimitedLimit, normalizePlan, PLAN_LIMITS, planLabel } from "@/lib/plans";
 
 import { isUniqueViolation } from "@/types/database";
 import {
@@ -72,7 +72,7 @@ export async function createEmployee(
 
   const plan = normalizePlan(orgPlanRow?.plan);
   const seatCap = PLAN_LIMITS[plan].seats;
-  if ((existingCount ?? 0) >= seatCap) {
+  if (!isUnlimitedLimit(seatCap) && (existingCount ?? 0) >= seatCap) {
     return {
       ok: false,
       error: `Your ${planLabel(plan)} workspace can include up to ${seatCap} people. Upgrade the plan in Settings to add more.`,

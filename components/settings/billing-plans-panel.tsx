@@ -25,6 +25,7 @@ import {
   PLAN_PRICES_INR,
   effectiveMonthlyYearly,
   formatInr,
+  isUnlimitedLimit,
   normalizePlan,
   paidPlanTier,
   planLabel,
@@ -83,10 +84,19 @@ function loadCheckoutScript(): Promise<void> {
 
 function featureList(plan: Exclude<PlanId, "free">): string[] {
   const L = PLAN_LIMITS[plan];
+  const seatsText = isUnlimitedLimit(L.seats)
+    ? "Unlimited people in your directory"
+    : `Up to ${L.seats} people in your directory`;
+  const orgAiText = isUnlimitedLimit(L.aiOrgMonthlyCap)
+    ? "No org-wide monthly AI cap"
+    : `${L.aiOrgMonthlyCap} AI roll-up assists / workspace each month`;
+  const perEmpText = isUnlimitedLimit(L.aiPerEmployeePerMonth)
+    ? "No per-employee monthly AI cap"
+    : `${L.aiPerEmployeePerMonth} assists per employee / month`;
   return [
-    `Up to ${L.seats} people in your directory`,
-    `${L.aiOrgMonthlyCap} AI roll-up assists / workspace each month`,
-    `${L.aiPerEmployeePerMonth} assists per employee / month`,
+    seatsText,
+    orgAiText,
+    perEmpText,
     "Invoices settle in ₹ INR through Razorpay",
   ];
 }
@@ -94,11 +104,13 @@ function featureList(plan: Exclude<PlanId, "free">): string[] {
 export function BillingPlansPanel({
   workspacePlan,
   subscriptionStatus,
+  billingInterval,
   canManageBilling,
   razorpayReady,
 }: {
   workspacePlan: string;
   subscriptionStatus: string;
+  billingInterval: "month" | "year" | null;
   canManageBilling: boolean;
   razorpayReady: boolean;
 }): React.ReactElement {
@@ -174,9 +186,9 @@ export function BillingPlansPanel({
           </Badge>
         </div>
         <CardDescription className="max-w-2xl text-pretty leading-relaxed">
-          Free includes three people and a small AI trial. Paid tiers add headroom for
-          larger teams and regular AI-assisted roll-ups. Payments run through Razorpay;
-          we never store card numbers on our servers.
+          Built for org-level usage: higher seat capacity, larger monthly AI quotas,
+          and predictable INR billing via Razorpay. We never store card numbers on our
+          servers.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6 pt-2">
@@ -236,7 +248,7 @@ export function BillingPlansPanel({
             </p>
             <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
               {PLAN_LIMITS.free.seats} people · {PLAN_LIMITS.free.aiOrgMonthlyCap} AI
-              assists / month workspace-wide (≤1 each person).
+              assists total / month workspace-wide.
             </p>
             <ul className="text-muted-foreground mt-4 space-y-2 text-xs leading-relaxed">
               <li className="flex gap-2">
@@ -259,7 +271,10 @@ export function BillingPlansPanel({
               interval === "year"
                 ? `≈ ${formatInr(Math.round(effectiveMonthlyYearly(paid) * 10) / 10)} / mo effective · one ₹ invoice per year`
                 : "Paid monthly in ₹ INR";
-            const isCurrent = plan === paid;
+            const isCurrent =
+              plan === paid &&
+              billingInterval === interval &&
+              subscriptionStatus !== "none";
             return (
               <div
                 key={paid}
@@ -348,8 +363,8 @@ export function BillingPlansPanel({
         ) : null}
       </CardContent>
       <CardFooter className="text-muted-foreground border-border/60 border-t bg-muted/10 text-[11px] leading-relaxed">
-        Priced with typical OpenAI-mini usage and hosting in mind; unusually heavy AI
-        months may reach the assists cap sooner—contact us if you regularly need more.
+        Limits and pricing are org-wide. If your hiring or AI usage grows beyond plan
+        quotas, upgrade anytime to increase capacity.
       </CardFooter>
     </Card>
   );

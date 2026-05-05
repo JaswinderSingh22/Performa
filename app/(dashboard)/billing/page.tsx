@@ -16,7 +16,7 @@ export default async function BillingPage(): Promise<ReactElement | null> {
   const [{ data: organization }, { data: profile }] = await Promise.all([
     access.supabase
       .from("organizations")
-      .select("plan, subscription_status")
+      .select("plan, subscription_status, billing_interval")
       .eq("id", access.orgId)
       .maybeSingle(),
     user
@@ -36,6 +36,9 @@ export default async function BillingPage(): Promise<ReactElement | null> {
         <BillingPlansPanel
           workspacePlan={organization?.plan ?? "free"}
           subscriptionStatus={organization?.subscription_status ?? "none"}
+                billingInterval={
+                  (organization?.billing_interval as "month" | "year" | null) ?? null
+                }
           canManageBilling={profile?.role === "admin"}
           razorpayReady={razorpayReady}
         />

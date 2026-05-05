@@ -2,6 +2,7 @@ import "server-only";
 
 import type { OrgAccess } from "@/lib/org-context";
 import {
+  isUnlimitedLimit,
   normalizePlan,
   PLAN_LIMITS,
   type PlanId,
@@ -57,7 +58,7 @@ export async function assertAiAssistAllowedForEmployee(
     usageRows?.reduce((acc, row) => acc + (row.count ?? 0), 0) ?? 0;
   const employeeMonth = employeeRow?.count ?? 0;
 
-  if (orgMonthlyTotal >= limits.aiOrgMonthlyCap) {
+  if (!isUnlimitedLimit(limits.aiOrgMonthlyCap) && orgMonthlyTotal >= limits.aiOrgMonthlyCap) {
     const hint =
       plan === "free"
         ? "Upgrade to Pro for more AI-assisted roll-ups (still billed in ₹)."
@@ -68,7 +69,10 @@ export async function assertAiAssistAllowedForEmployee(
     };
   }
 
-  if (employeeMonth >= limits.aiPerEmployeePerMonth) {
+  if (
+    !isUnlimitedLimit(limits.aiPerEmployeePerMonth) &&
+    employeeMonth >= limits.aiPerEmployeePerMonth
+  ) {
     return {
       ok: false,
       reason: `Under your ${plan} plan, each person can use up to ${limits.aiPerEmployeePerMonth} AI assist(s) per month for this workspace.`,

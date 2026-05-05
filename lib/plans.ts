@@ -20,28 +20,35 @@ export type PlanLimits = {
   aiOrgMonthlyCap: number;
 };
 
+/** Sentinel for "no practical cap" in plan checks/UI. */
+export const UNLIMITED_LIMIT = Number.MAX_SAFE_INTEGER;
+
+export function isUnlimitedLimit(value: number): boolean {
+  return value >= UNLIMITED_LIMIT;
+}
+
 export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
   free: {
-    seats: 3,
-    aiPerEmployeePerMonth: 1,
-    aiOrgMonthlyCap: 3,
+    seats: 5,
+    aiPerEmployeePerMonth: 5,
+    aiOrgMonthlyCap: 5,
   },
   pro: {
-    seats: 10,
-    aiPerEmployeePerMonth: 50,
-    aiOrgMonthlyCap: 150,
+    seats: 100,
+    aiPerEmployeePerMonth: UNLIMITED_LIMIT,
+    aiOrgMonthlyCap: 1000,
   },
   pro_plus: {
-    seats: 50,
-    aiPerEmployeePerMonth: 50,
-    aiOrgMonthlyCap: 600,
+    seats: UNLIMITED_LIMIT,
+    aiPerEmployeePerMonth: 20,
+    aiOrgMonthlyCap: UNLIMITED_LIMIT,
   },
 };
 
 /** Display prices in INR (Razorpay charges in INR regardless of manager country). */
 export const PLAN_PRICES_INR = {
-  pro: { monthly: 899, yearly: 8_990 },
-  pro_plus: { monthly: 2_899, yearly: 28_990 },
+  pro: { monthly: 9_999, yearly: 99_990 },
+  pro_plus: { monthly: 19_999, yearly: 199_990 },
 } as const;
 
 export function formatInr(amount: number): string {
