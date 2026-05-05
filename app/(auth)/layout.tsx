@@ -19,20 +19,20 @@ export default function AuthLayout({
           >
             <Image
               src="/brand/performaai-mark.png"
-              alt="PerformaAI mark"
+              alt="PerformaAi mark"
               width={64}
               height={64}
               className="h-10 w-10 rounded-full border border-border/50"
             />
             <span className="font-heading text-lg font-semibold tracking-tight">
-              PerformaAI
+              PerformaAi
             </span>
           </Link>
 
           <div className="mt-6 overflow-hidden rounded-2xl border border-border/60 bg-background/70 p-3">
             <Image
               src="/brand/performaai-wordmark.png"
-              alt="PerformaAI"
+              alt="PerformaAi"
               width={1376}
               height={458}
               className="w-full rounded-xl"
@@ -60,13 +60,13 @@ export default function AuthLayout({
           >
             <Image
               src="/brand/performaai-mark.png"
-              alt="PerformaAI mark"
+              alt="PerformaAi mark"
               width={40}
               height={40}
               className="h-8 w-8 rounded-full border border-border/50"
             />
             <span className="font-heading text-base font-semibold tracking-tight">
-              PerformaAI
+              PerformaAi
             </span>
           </Link>
           <p className="text-muted-foreground text-center text-xs">

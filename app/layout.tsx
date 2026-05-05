@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PerformaAI — AI-Powered Performance",
+  title: "PerformaAi — AI-Powered Performance",
   description:
     "Run structured reviews and period roll-ups with notes, achievements, and AI assist — in one workspace.",
 };

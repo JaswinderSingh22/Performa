@@ -26,41 +26,34 @@ export default async function EmployeeInsightsPage({
   const access = await getOrgAccess();
   if (!access) return null;
 
-  const { data: employee, error: employeeError } = await access.supabase
-    .from("employees")
-    .select("*")
-    .eq("id", id)
-    .eq("org_id", access.orgId)
-    .maybeSingle();
-
-  if (employeeError || !employee) {
-    notFound();
-  }
-
-  const employeeRow = employee as EmployeeRow;
-
-  const [teamsRes, departmentsRes, achievementsRes, reviewsRes, notesRes] =
+  const [employeeRes, teamsRes, departmentsRes, achievementsRes, reviewsRes, notesRes] =
     await Promise.all([
-    access.supabase
-      .from("teams")
-      .select("id, name")
-      .eq("org_id", access.orgId)
-      .order("name", { ascending: true }),
-    access.supabase
-      .from("departments")
-      .select("id, name, review_cadence, quarter_start_month")
-      .eq("org_id", access.orgId)
-      .order("name", { ascending: true }),
-    access.supabase
-      .from("achievements")
-      .select("*")
-      .eq("employee_id", id)
-      .eq("org_id", access.orgId)
-      .order("created_at", { ascending: false }),
-    access.supabase
-      .from("reviews")
-      .select(
-        `
+      access.supabase
+        .from("employees")
+        .select("*")
+        .eq("id", id)
+        .eq("org_id", access.orgId)
+        .maybeSingle(),
+      access.supabase
+        .from("teams")
+        .select("id, name")
+        .eq("org_id", access.orgId)
+        .order("name", { ascending: true }),
+      access.supabase
+        .from("departments")
+        .select("id, name, review_cadence, quarter_start_month")
+        .eq("org_id", access.orgId)
+        .order("name", { ascending: true }),
+      access.supabase
+        .from("achievements")
+        .select("*")
+        .eq("employee_id", id)
+        .eq("org_id", access.orgId)
+        .order("created_at", { ascending: false }),
+      access.supabase
+        .from("reviews")
+        .select(
+          `
         *,
         review_dimensions (
           id,
@@ -73,17 +66,24 @@ export default async function EmployeeInsightsPage({
           created_at
         )
       `,
-      )
-      .eq("employee_id", id)
-      .eq("org_id", access.orgId)
-      .order("created_at", { ascending: false }),
-    access.supabase
-      .from("employee_notes")
-      .select("*")
-      .eq("employee_id", id)
-      .eq("org_id", access.orgId)
-      .order("created_at", { ascending: false }),
+        )
+        .eq("employee_id", id)
+        .eq("org_id", access.orgId)
+        .order("created_at", { ascending: false }),
+      access.supabase
+        .from("employee_notes")
+        .select("*")
+        .eq("employee_id", id)
+        .eq("org_id", access.orgId)
+        .order("created_at", { ascending: false }),
     ]);
+
+  const { data: employee, error: employeeError } = employeeRes;
+  if (employeeError || !employee) {
+    notFound();
+  }
+
+  const employeeRow = employee as EmployeeRow;
 
   const employeeDepartment = (departmentsRes.data ?? []).find(
     (d) =>

@@ -73,7 +73,7 @@ export function LandingPage(): React.ReactElement {
         >
           <div>
             <Badge variant="secondary" className="mb-3 font-normal">
-              PerformaAI · AI-Powered Performance. Real Human Impact.
+              PerformaAi · AI-Powered Performance. Real Human Impact.
             </Badge>
             <h1 className="font-heading text-balance text-4xl font-semibold tracking-tight md:text-6xl">
               Run modern performance reviews without spreadsheet chaos.
@@ -100,7 +100,7 @@ export function LandingPage(): React.ReactElement {
           >
             <Image
               src="/brand/performaai-wordmark.png"
-              alt="PerformaAI name and tagline"
+              alt="PerformaAi name and tagline"
               width={1376}
               height={458}
               className="w-full rounded-2xl border border-border/60"
@@ -117,7 +117,7 @@ export function LandingPage(): React.ReactElement {
         >
           <Image
             src="/brand/performaai-mark.png"
-            alt="PerformaAI mark"
+            alt="PerformaAi mark"
             width={746}
             height={756}
             className="mx-auto w-36 rounded-full border border-border/50 shadow-md"

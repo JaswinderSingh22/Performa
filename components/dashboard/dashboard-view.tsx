@@ -5,10 +5,9 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
 import {
   ArrowUpRightIcon,
-  BarChart3Icon,
   ClipboardListIcon,
   MessageSquareIcon,
-  SparklesIcon,
+  StarIcon,
   TrophyIcon,
   UsersIcon,
 } from "lucide-react";
@@ -47,22 +46,20 @@ export type RecentReviewRow = {
 };
 
 export type TeamSlice = { name: string; count: number };
+export type OrgTopRanking = { name: string; avgRating: number; reviewCount: number };
 
 export type DashboardViewProps = {
   employeeCount: number;
+  teamCount: number;
+  departmentCount: number;
   reviewCount: number;
-  achievementCount: number;
-  noteCount: number;
-  achievementsCoveredEmployeeCount: number;
-  notesCoveredEmployeeCount: number;
-  reviewsCoveredEmployeeCount: number;
-  avgRating: number | null;
   ratedReviewCount: number;
   teams: TeamSlice[];
   recentReviews: RecentReviewRow[];
   teamsError?: boolean;
-  topRated: LeaderboardSlice[];
-  needsAttention: LeaderboardSlice[];
+  topTeams: OrgTopRanking[];
+  topEmployees: OrgTopRanking[];
+  topDepartments: OrgTopRanking[];
 };
 
 function statusLabel(): string {
@@ -104,27 +101,18 @@ function AnimatedBar({
 
 export function DashboardView({
   employeeCount,
+  teamCount,
+  departmentCount,
   reviewCount,
-  achievementCount,
-  noteCount,
-  achievementsCoveredEmployeeCount,
-  notesCoveredEmployeeCount,
-  reviewsCoveredEmployeeCount,
-  avgRating,
   ratedReviewCount,
   teams,
   recentReviews,
   teamsError = false,
-  topRated = [],
-  needsAttention = [],
+  topTeams,
+  topEmployees,
+  topDepartments,
 }: DashboardViewProps): ReactElement {
   const prefersReducedMotion = useReducedMotion() === true;
-
-  const scoredRate =
-    reviewCount > 0 ? Math.round((ratedReviewCount / reviewCount) * 100) : 0;
-
-  const notePerEmployee =
-    employeeCount > 0 ? (noteCount / employeeCount).toFixed(1) : "—";
 
   const statCards = [
     {
@@ -136,25 +124,25 @@ export function DashboardView({
       iconClass: "text-sky-600 dark:text-sky-400",
     },
     {
-      title: "Reviews",
-      value: `${reviewsCoveredEmployeeCount}/${employeeCount}`,
-      hint: `${reviewCount} total saved`,
+      title: "Teams",
+      value: String(teamCount),
+      hint: "Configured in organisation",
       icon: ClipboardListIcon,
       accent: "from-violet-500/15 to-fuchsia-500/10",
       iconClass: "text-violet-600 dark:text-violet-400",
     },
     {
-      title: "Achievements",
-      value: `${achievementsCoveredEmployeeCount}/${employeeCount}`,
-      hint: `${achievementCount} total logged`,
+      title: "Departments",
+      value: String(departmentCount),
+      hint: "Active business units",
       icon: TrophyIcon,
       accent: "from-amber-500/15 to-orange-500/10",
       iconClass: "text-amber-600 dark:text-amber-400",
     },
     {
-      title: "Notes",
-      value: `${notesCoveredEmployeeCount}/${employeeCount}`,
-      hint: employeeCount ? `~${notePerEmployee} / person` : "Manager notes",
+      title: "Reviews",
+      value: String(reviewCount),
+      hint: "Total review records saved",
       icon: MessageSquareIcon,
       accent: "from-emerald-500/15 to-teal-500/10",
       iconClass: "text-emerald-600 dark:text-emerald-400",
@@ -173,62 +161,6 @@ export function DashboardView({
       </div>
 
       <main className="flex flex-1 flex-col gap-8 p-6 pb-10">
-        <motion.div
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: easingOut }}
-          className="border-border/60 from-card/90 to-muted/25 relative overflow-hidden rounded-2xl border bg-gradient-to-br p-5 shadow-[0_1px_0_rgba(255,255,255,0.06)_inset,0_18px_48px_-24px_rgba(15,23,42,0.25)] backdrop-blur-sm md:p-6"
-        >
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex min-w-0 items-start gap-3">
-              <div className="bg-primary/12 text-primary flex size-11 shrink-0 items-center justify-center rounded-xl">
-                <BarChart3Icon className="size-5" aria-hidden />
-              </div>
-              <div className="min-w-0">
-                <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                  Workspace pulse
-                </p>
-                <h2 className="font-heading mt-1 text-lg font-semibold tracking-tight md:text-xl">
-                  Performance coverage at a glance
-                </h2>
-                <p className="text-muted-foreground mt-1 max-w-xl text-sm leading-relaxed">
-                  <span className="text-foreground font-medium">
-                    Notes and achievements
-                  </span>{" "}
-                  save as you type.{" "}
-                  <span className="text-foreground font-medium">
-                    Performance reviews
-                  </span>{" "}
-                  are saved directly with checklist and area-based scoring for
-                  reports.
-                </p>
-              </div>
-            </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              <Badge variant="secondary" className="gap-1 font-normal tabular-nums">
-                <SparklesIcon className="size-3.5 opacity-70" aria-hidden />
-                Avg from scored reviews
-                {avgRating !== null ? (
-                  <>
-                    {": "}
-                    <span className="text-foreground font-semibold">
-                      {avgRating.toFixed(1)}
-                    </span>
-                    /5
-                  </>
-                ) : (
-                  <span className="text-muted-foreground"> — none yet</span>
-                )}
-              </Badge>
-              {ratedReviewCount > 0 ? (
-                <span className="text-muted-foreground self-center text-xs tabular-nums">
-                  ({ratedReviewCount} scored reviews)
-                </span>
-              ) : null}
-            </div>
-          </div>
-        </motion.div>
-
         <motion.div
           className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
           initial="hidden"
@@ -278,173 +210,33 @@ export function DashboardView({
           })}
         </motion.div>
 
-        {(topRated.length > 0 || needsAttention.length > 0) && (
-          <motion.div
-            className="grid gap-4 md:grid-cols-2"
-            initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: 0.48,
-              ease: easingOut,
-              delay: prefersReducedMotion ? 0 : 0.08,
-            }}
-          >
-            <Card className="border-emerald-500/12 from-emerald-500/[0.04] shadow-md lg:shadow-md bg-gradient-to-br to-transparent">
-              <CardHeader className="border-emerald-500/10 border-b">
-                <CardTitle>Strengths · high scores</CardTitle>
-                <CardDescription>
-                  Best average ratings from scored performance reviews—open the
-                  profile for next steps.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-4">
-                {topRated.length === 0 ? (
-                  <p className="text-muted-foreground text-sm leading-relaxed">
-                    Once someone has a scored review, they&apos;ll rank here.
-                  </p>
-                ) : (
-                  <ul className="space-y-2">
-                    {topRated.map((row) => (
-                      <li key={row.employeeId}>
-                        <Link
-                          href={`/employees/${row.employeeId}/insights`}
-                          className="hover:bg-muted/45 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition-colors"
-                        >
-                          <span className="text-foreground font-medium truncate">
-                            {row.employeeName}
-                          </span>
-                          <span className="text-muted-foreground tabular-nums text-sm">
-                            {row.avgRating.toFixed(1)}/5
-                            <span className="opacity-70">
-                              · {row.reviewCount}{" "}
-                              {row.reviewCount === 1 ? "review" : "reviews"}
-                            </span>
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-            <Card className="border-amber-500/18 from-amber-500/[0.05] shadow-md lg:shadow-md bg-gradient-to-br to-transparent">
-              <CardHeader className="border-amber-500/14 border-b">
-                <CardTitle>Focus · low averages</CardTitle>
-                <CardDescription>
-                  People with the lowest scored-review averages—pair with coaching,
-                  training, or another formal review.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-4">
-                {needsAttention.length === 0 ? (
-                  <p className="text-muted-foreground text-sm leading-relaxed">
-                    Needs more scored review data before we can spotlight gaps.
-                  </p>
-                ) : (
-                  <ul className="space-y-2">
-                    {needsAttention.map((row) => (
-                      <li key={`low-${row.employeeId}`}>
-                        <Link
-                          href={`/employees/${row.employeeId}/insights`}
-                          className="hover:bg-muted/45 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition-colors"
-                        >
-                          <span className="text-foreground font-medium truncate">
-                            {row.employeeName}
-                          </span>
-                          <span className="text-muted-foreground tabular-nums text-sm">
-                            {row.avgRating.toFixed(1)}/5
-                            <span className="opacity-70">
-                              · {row.reviewCount}{" "}
-                              {row.reviewCount === 1 ? "review" : "reviews"}
-                            </span>
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
+        <motion.div
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            duration: 0.48,
+            ease: easingOut,
+            delay: prefersReducedMotion ? 0 : 0.08,
+          }}
+        >
+          <Card className="border-border/70 shadow-md">
+            <CardHeader className="border-border/60 border-b">
+              <CardTitle>Top performers snapshot</CardTitle>
+              <CardDescription>
+                Top 3 teams, employees, and departments based on average scored reviews.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 pt-4 md:grid-cols-2 xl:grid-cols-3">
+              <TopRankList title="Top teams" rows={topTeams} />
+              <TopRankList title="Top employees" rows={topEmployees} />
+              <TopRankList title="Top departments" rows={topDepartments} />
+            </CardContent>
+          </Card>
+        </motion.div>
 
         <div className="grid gap-4 lg:grid-cols-5">
           <motion.div
-            className="lg:col-span-3"
-            initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: 0.48,
-              ease: easingOut,
-              delay: prefersReducedMotion ? 0 : 0.12,
-            }}
-          >
-            <Card className="border-border/70 h-full shadow-md">
-              <CardHeader className="border-border/60 border-b">
-                <CardTitle>Review records</CardTitle>
-                <CardDescription>
-                  Saved review records for this workspace, plus score coverage from
-                  checklist and dimension ratings.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6 pt-4">
-                <div className="flex flex-wrap gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="bg-muted-foreground/70 size-2 rounded-full" />
-                    <span className="text-muted-foreground">
-                      Saved reviews
-                      <strong className="text-foreground ml-1 tabular-nums font-semibold">
-                        {reviewCount}
-                      </strong>
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="bg-primary size-2 rounded-full" />
-                    <span className="text-muted-foreground">
-                      With scores
-                      <strong className="text-foreground ml-1 tabular-nums font-semibold">
-                        {ratedReviewCount}
-                      </strong>
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <div className="text-muted-foreground mb-2 flex justify-between text-xs">
-                      <span>Scored review share</span>
-                      <span className="tabular-nums font-medium">
-                        {scoredRate}%
-                      </span>
-                    </div>
-                    <AnimatedBar
-                      value={ratedReviewCount}
-                      total={reviewCount || 1}
-                      className="bg-primary"
-                      delay={0}
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-muted/40 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm">
-                  <span className="text-muted-foreground">
-                    Coverage spotlight · reviews only
-                  </span>
-                  <span className="font-heading font-semibold tabular-nums">
-                    <span className="text-primary text-2xl">
-                      {scoredRate}
-                    </span>
-                    <span className="text-muted-foreground text-base font-normal">
-                      % scored
-                    </span>
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div
-            className="lg:col-span-2"
+            className="lg:col-span-5"
             initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{
@@ -584,6 +376,59 @@ export function DashboardView({
           </Card>
         </motion.div>
       </main>
+    </div>
+  );
+}
+
+function TopRankList({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: OrgTopRanking[];
+}): ReactElement {
+  return (
+    <div className="bg-muted/25 border-border/70 rounded-xl border p-3">
+      <p className="text-muted-foreground mb-2 text-xs font-medium uppercase">{title}</p>
+      {rows.length === 0 ? (
+        <p className="text-muted-foreground text-xs">No scored reviews yet.</p>
+      ) : (
+        <ul className="space-y-2">
+          {rows.map((row, idx) => (
+            <li
+              key={`${title}-${row.name}`}
+              className={cn(
+                "flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-sm",
+                idx === 0 && "border-amber-500/35 bg-amber-500/8",
+                idx === 1 && "border-slate-400/35 bg-slate-500/8",
+                idx === 2 && "border-orange-500/35 bg-orange-500/8",
+              )}
+            >
+              <span className="flex min-w-0 items-center gap-2 truncate">
+                <span
+                  className={cn(
+                    "inline-flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] tabular-nums",
+                    idx === 0 && "bg-amber-500/20 text-amber-700 dark:text-amber-300",
+                    idx === 1 && "bg-slate-500/20 text-slate-700 dark:text-slate-300",
+                    idx === 2 && "bg-orange-500/20 text-orange-700 dark:text-orange-300",
+                  )}
+                >
+                  {idx + 1}
+                </span>
+                {idx === 0 ? (
+                  <TrophyIcon className="size-3.5 shrink-0 text-amber-500" />
+                ) : (
+                  <StarIcon className="text-muted-foreground size-3.5 shrink-0" />
+                )}
+                <span className="truncate">{row.name}</span>
+              </span>
+              <span className="text-muted-foreground shrink-0 tabular-nums text-xs">
+                {row.avgRating.toFixed(1)}/5 · {row.reviewCount}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

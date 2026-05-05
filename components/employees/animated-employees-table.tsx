@@ -115,6 +115,13 @@ export function AnimatedEmployeesTable({
     return sorted;
   }, [employees, departmentFilter, teamFilter, sortBy, searchQuery]);
 
+  React.useEffect(() => {
+    // Warm Next.js route cache for likely clicks.
+    for (const employee of visibleEmployees.slice(0, 24)) {
+      router.prefetch(`/employees/${employee.id}/insights`);
+    }
+  }, [router, visibleEmployees]);
+
   return (
     <motion.div
       className="-mx-[1px]"
@@ -188,105 +195,121 @@ export function AnimatedEmployeesTable({
         </div>
       </div>
       <div className="bg-card border-border/70 overflow-hidden rounded-xl border shadow-sm">
-        <div className="max-h-[520px] overflow-auto">
-          <Table className="min-w-[980px] border-separate border-spacing-0">
-            <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border/80">
-                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4">Name</TableHead>
-                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4">Email</TableHead>
-                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4">Role</TableHead>
-                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4">Department</TableHead>
-                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4">Team</TableHead>
-                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4 text-center">Joined</TableHead>
-                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4 text-center tabular-nums">
-                  Achievements
-                </TableHead>
-                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4 text-center tabular-nums">
-                  Reviews
-                </TableHead>
-                <TableHead className="sticky top-0 z-10 bg-muted/65 px-4 text-center tabular-nums">
-                  Notes
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visibleEmployees.map((employee, index) => (
-                <MotionTableRow
-                  key={employee.id}
-                  {...(prefersReducedMotion
-                    ? {}
-                    : {
-                        initial: { opacity: 0, x: -8 },
-                        animate: { opacity: 1, x: 0 },
-                        transition: {
-                          duration: 0.28,
-                          ease: easingOut,
-                          delay: 0.03 + index * 0.04,
-                        },
-                      })}
-                  className="group hover:bg-muted/20 cursor-pointer border-b border-border/65"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => router.push(`/employees/${employee.id}/insights`)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      router.push(`/employees/${employee.id}/insights`);
-                    }
-                  }}
-                >
-                  <TableCell className="px-4 py-3 font-medium">
-                    <span className="text-foreground group-hover:text-primary underline-offset-4 transition-colors">
-                      {employee.name}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground max-w-[200px] truncate px-4 py-3">
-                    {employee.email}
-                  </TableCell>
-                  <TableCell className="px-4 py-3">
-                    {employee.role ? (
-                      <span>{employee.role}</span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="px-4 py-3">
-                    {employee.department ? (
-                      <span>{employee.department}</span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="px-4 py-3">
-                    {employee.team_name?.trim() ? (
-                      <span>{employee.team_name}</span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground px-4 py-3 text-center text-xs whitespace-nowrap">
-                    {employee.join_date ?? "—"}
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
-                    <CountBadge value={employee.achievement_count} />
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
-                    <CountBadge value={employee.review_count} />
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center">
-                    <CountBadge value={employee.notes_count} />
-                  </TableCell>
-                </MotionTableRow>
-              ))}
-              {visibleEmployees.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-muted-foreground py-10 text-center text-sm">
-                    No employees match current search or filters.
-                  </TableCell>
+        <div className="overflow-x-auto">
+          <div className="min-w-[1040px]">
+            <Table className="border-separate border-spacing-0">
+              <TableHeader>
+                <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border/80">
+                  <TableHead className="bg-muted/65 w-[70px] px-4 text-center">S.No</TableHead>
+                  <TableHead className="bg-muted/65 w-[170px] px-4">Name</TableHead>
+                  <TableHead className="bg-muted/65 w-[220px] px-4">Email</TableHead>
+                  <TableHead className="bg-muted/65 w-[150px] px-4">Role</TableHead>
+                  <TableHead className="bg-muted/65 w-[140px] px-4">Department</TableHead>
+                  <TableHead className="bg-muted/65 w-[140px] px-4">Team</TableHead>
+                  <TableHead className="bg-muted/65 w-[120px] px-4 text-center">Joined</TableHead>
+                  <TableHead className="bg-muted/65 w-[110px] px-4 text-center tabular-nums">
+                    Achievements
+                  </TableHead>
+                  <TableHead className="bg-muted/65 w-[90px] px-4 text-center tabular-nums">
+                    Reviews
+                  </TableHead>
+                  <TableHead className="bg-muted/65 w-[90px] px-4 text-center tabular-nums">
+                    Notes
+                  </TableHead>
                 </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
+              </TableHeader>
+            </Table>
+            <div className="max-h-[520px] overflow-y-auto">
+              <Table className="border-separate border-spacing-0">
+                <TableBody>
+                  {visibleEmployees.map((employee, index) => (
+                    <MotionTableRow
+                      key={employee.id}
+                      {...(prefersReducedMotion
+                        ? {}
+                        : {
+                            initial: { opacity: 0, x: -8 },
+                            animate: { opacity: 1, x: 0 },
+                            transition: {
+                              duration: 0.28,
+                              ease: easingOut,
+                              delay: 0.03 + index * 0.04,
+                            },
+                          })}
+                      className="group hover:bg-muted/20 cursor-pointer border-b border-border/65"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => router.push(`/employees/${employee.id}/insights`)}
+                      onMouseEnter={() =>
+                        router.prefetch(`/employees/${employee.id}/insights`)
+                      }
+                      onFocus={() =>
+                        router.prefetch(`/employees/${employee.id}/insights`)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          router.push(`/employees/${employee.id}/insights`);
+                        }
+                      }}
+                    >
+                      <TableCell className="w-[70px] px-4 py-3 text-center text-xs tabular-nums">
+                        {index + 1}
+                      </TableCell>
+                      <TableCell className="w-[170px] px-4 py-3 font-medium">
+                        <span className="text-foreground group-hover:text-primary underline-offset-4 transition-colors">
+                          {employee.name}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground w-[220px] truncate px-4 py-3">
+                        {employee.email}
+                      </TableCell>
+                      <TableCell className="w-[150px] px-4 py-3">
+                        {employee.role ? (
+                          <span>{employee.role}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="w-[140px] px-4 py-3">
+                        {employee.department ? (
+                          <span>{employee.department}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="w-[140px] px-4 py-3">
+                        {employee.team_name?.trim() ? (
+                          <span>{employee.team_name}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground w-[120px] px-4 py-3 text-center text-xs whitespace-nowrap">
+                        {employee.join_date ?? "—"}
+                      </TableCell>
+                      <TableCell className="w-[110px] px-4 py-3 text-center">
+                        <CountBadge value={employee.achievement_count} />
+                      </TableCell>
+                      <TableCell className="w-[90px] px-4 py-3 text-center">
+                        <CountBadge value={employee.review_count} />
+                      </TableCell>
+                      <TableCell className="w-[90px] px-4 py-3 text-center">
+                        <CountBadge value={employee.notes_count} />
+                      </TableCell>
+                    </MotionTableRow>
+                  ))}
+                  {visibleEmployees.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-muted-foreground py-10 text-center text-sm">
+                        No employees match current search or filters.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
         </div>
       </div>
     </motion.div>

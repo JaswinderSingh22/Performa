@@ -13,7 +13,7 @@ export const profileUpdateSchema = z.object({
       z.undefined(),
       z
         .number()
-        .int({ message: "Use a whole number of years." })
+        .finite({ message: "Enter a valid number of years." })
         .min(0)
         .max(60),
     ])

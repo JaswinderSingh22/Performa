@@ -211,8 +211,8 @@ function ReviewFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="grid max-h-[min(94dvh,_880px)] max-w-xl gap-0 overflow-y-auto p-0">
-        <form onSubmit={onSubmit}>
+      <DialogContent className="grid h-[92vh] w-[95vw] max-h-[92vh] max-w-[1200px] gap-0 overflow-hidden p-0 sm:max-w-[1200px]">
+        <form onSubmit={onSubmit} className="flex h-full min-h-0 flex-col">
           <div className="p-6 pb-2">
             <DialogHeader className="text-left">
               <DialogTitle>
@@ -226,326 +226,321 @@ function ReviewFormDialog({
               </DialogDescription>
             </DialogHeader>
           </div>
-          <div className="border-border grid gap-5 border-y px-6 py-6">
+          <div className="border-border min-h-0 flex-1 overflow-y-auto border-y px-6 py-6">
             {form.formState.errors.root?.message ? (
               <p className="text-destructive text-sm" role="alert">
                 {form.formState.errors.root.message}
               </p>
             ) : null}
-            <div className="grid gap-2">
-              <Label htmlFor="rev-title">Review cycle / title</Label>
-              <Input
-                id="rev-title"
-                placeholder="e.g. Q2 2026 Performance Review"
-                {...form.register("title")}
-              />
-              {form.formState.errors.title ? (
-                <p className="text-destructive text-xs">
-                  {form.formState.errors.title.message}
-                </p>
-              ) : null}
-            </div>
-            <div className="grid gap-2 sm:max-w-xs">
-              <Label htmlFor="rev-date">Review date</Label>
-              <Input id="rev-date" type="date" {...form.register("reviewDate")} />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground"
-                onClick={() => {
-                  form.setValue("dimensions", [...DEFAULT_DIMENSION_ROWS]);
-                  form.trigger("dimensions");
-                }}
-              >
-                Load HR competency template
-              </Button>
-            </div>
-
-            <div className="border-border/80 bg-muted/15 space-y-3 rounded-xl border p-4">
-              <div>
-                <Label>HR evaluation checklist</Label>
-                <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-                  Mark evidence-backed criteria. Each item has a weight; the saved
-                  score is the weighted share mapped to{" "}
-                  <span className="text-foreground font-medium tabular-nums">1–5</span>
-                  .
-                </p>
-              </div>
-              <ul className="space-y-2.5">
-                {PERFORMANCE_CHECKLIST.map((item) => (
-                  <li key={item.slug}>
-                    <Controller
-                      name={`checklist.${item.slug}`}
-                      control={form.control}
-                      render={({ field }) => (
-                        <label className="hover:bg-muted/45 flex cursor-pointer items-start gap-2.5 rounded-lg p-2 text-sm transition-colors">
-                          <input
-                            type="checkbox"
-                            className="text-primary mt-0.5 size-4 shrink-0 rounded border-input"
-                            checked={Boolean(field.value)}
-                            onChange={(e) =>
-                              field.onChange(e.target.checked)
-                            }
-                          />
-                          <span className="min-w-0">
-                            <span className="leading-snug font-medium">
-                              {item.label}
-                            </span>
-                            <span className="text-muted-foreground mt-0.5 block text-xs tabular-nums">
-                              Weight {item.weight}/{CHECKLIST_TOTAL_WEIGHT}
-                            </span>
-                          </span>
-                        </label>
-                      )}
-                    />
-                  </li>
-                ))}
-              </ul>
-              <p className="text-muted-foreground text-xs tabular-nums">
-                Criteria met:{" "}
-                <span className="text-foreground font-semibold">
-                  {checklistStats.earned}/{checklistStats.max}
-                </span>{" "}
-                ({Math.round(checklistStats.pct * 100)}% coverage)
-              </p>
-              {checklistOfficial !== null ? (
-                <p className="text-foreground border-border/70 bg-background/80 rounded-lg border px-3 py-2 text-sm tabular-nums">
-                  Score from checklist:{" "}
-                  <span className="font-semibold">{checklistOfficial}/5</span>
-                </p>
-              ) : (
-                <p className="text-muted-foreground text-xs">
-                  Mark at least one criterion—otherwise scoring falls back to your
-                  area averages or manual pick.
-                </p>
-              )}
-            </div>
-
-            <div className="grid gap-3">
-              <div className="flex items-center justify-between gap-2">
-                <Label>Competency areas</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-0.5"
-                  onClick={() =>
-                    dimensionsFA.append({
-                      label: "",
-                      analysis: "",
-                      rating: 3,
-                    })
-                  }
-                >
-                  <PlusIcon className="size-3.5" />
-                  Add area
-                </Button>
-              </div>
-              <p className="text-muted-foreground text-xs">
-                {checklistOfficial !== null ? (
-                  <>
-                    Checklist controls the saved HR score (
-                    <span className="text-foreground font-semibold tabular-nums">
-                      {checklistOfficial}/5
-                    </span>
-                    ). Areas capture structured competency evidence for audit trails.
-                  </>
-                ) : watchedDims && watchedDims.length > 0 ? (
-                  <>
-                    Overall from areas (saved on submit):{" "}
-                    <span className="text-foreground font-semibold tabular-nums">
-                      {derivedOverall}/5
-                    </span>
-                    —rounded mean of row ratings.
-                  </>
-                ) : (
-                  <>
-                    With no checklist marks, add areas below to derive a score, or
-                    enter an optional overall rating manually on the right.
-                  </>
-                )}
-              </p>
-
-              <ul className="space-y-4">
-                {dimensionsFA.fields.map((fieldItem, idx) => (
-                  <li
-                    key={fieldItem.id}
-                    className="border-border/80 bg-muted/18 space-y-3 rounded-xl border p-3"
+            <div className="grid min-h-0 gap-6 xl:grid-cols-2 xl:items-start">
+              <div className="min-w-0 space-y-5">
+                <div className="border-border/70 bg-card/70 rounded-xl border p-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="rev-title">Review cycle / title</Label>
+                  <Input
+                    id="rev-title"
+                    placeholder="e.g. Q2 2026 Performance Review"
+                    {...form.register("title")}
+                  />
+                  {form.formState.errors.title ? (
+                    <p className="text-destructive text-xs">
+                      {form.formState.errors.title.message}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="grid gap-2 sm:max-w-xs">
+                  <Label htmlFor="rev-date">Review date</Label>
+                  <Input id="rev-date" type="date" {...form.register("reviewDate")} />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground"
+                    onClick={() => {
+                      form.setValue("dimensions", [...DEFAULT_DIMENSION_ROWS]);
+                      form.trigger("dimensions");
+                    }}
                   >
-                    <div className="flex flex-wrap items-start gap-2">
-                      <div className="grid min-w-0 flex-1 gap-2">
-                        <Label htmlFor={`rev-dim-${idx}-label`}>
-                          Area {idx + 1}
-                        </Label>
-                        <Input
-                          id={`rev-dim-${idx}-label`}
-                          {...form.register(`dimensions.${idx}.label`)}
-                          placeholder="e.g. Collaboration"
-                        />
-                      </div>
-                      <Controller
-                        name={`dimensions.${idx}.rating`}
-                        control={form.control}
-                        render={({ field }) => (
-                          <div className="grid gap-2 sm:w-[7.25rem]">
-                            <Label htmlFor={`rev-dim-${idx}-rating`}>
-                              Score
-                            </Label>
-                            <select
-                              id={`rev-dim-${idx}-rating`}
-                              value={field.value}
-                              onChange={(e) =>
-                                field.onChange(Number(e.target.value))
-                              }
-                              className={cn(
-                                "border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 h-10 w-full rounded-lg border px-2 text-sm outline-none focus-visible:ring-[3px]",
-                              )}
-                            >
-                              {[1, 2, 3, 4, 5].map((n) => (
-                                <option key={n} value={n}>
-                                  {n} / 5
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground mt-7 shrink-0"
-                        aria-label="Remove area"
-                        onClick={() => dimensionsFA.remove(idx)}
-                      >
-                        <Trash2Icon className="size-4" />
-                      </Button>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor={`rev-dim-${idx}-analysis`}>
-                        HR notes / evidence
-                      </Label>
-                      <Textarea
-                        id={`rev-dim-${idx}-analysis`}
-                        rows={3}
-                        {...form.register(`dimensions.${idx}.analysis`)}
-                        placeholder="Concrete examples, themes, outcomes…"
-                        className="min-h-[80px]"
-                      />
-                    </div>
-                    {form.formState.errors.dimensions?.[idx] ? (
-                      <p className="text-destructive text-xs">
-                        {[
-                          form.formState.errors.dimensions[idx]?.label
-                            ?.message,
-                          form.formState.errors.dimensions[idx]?.rating
-                            ?.message,
-                          form.formState.errors.dimensions[idx]?.analysis
-                            ?.message,
-                        ]
-                          .filter(Boolean)
-                          .join(" ")}
-                      </p>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
+                    Use default competency areas
+                  </Button>
+                </div>
+                </div>
 
-            <div className="grid gap-2">
-                {checklistOfficial !== null ? (
-                  <>
-                    <Label>Official HR rating</Label>
-                    <p className="text-muted-foreground py-2 text-sm tabular-nums">
-                      From checklist weighted score{" "}
-                      <span className="text-foreground font-semibold">
-                        {checklistOfficial}/5
-                      </span>
-                      . Clear checklist ticks if you need area-based scoring instead.
+                <div className="border-border/80 bg-muted/15 space-y-3 rounded-xl border p-4">
+                  <div>
+                    <Label>HR evaluation checklist</Label>
+                    <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+                      Mark evidence-backed criteria. Each item has a weight; the saved
+                      score is the weighted share mapped to{" "}
+                      <span className="text-foreground font-medium tabular-nums">1–5</span>.
                     </p>
-                  </>
-                ) : watchedDims && watchedDims.length > 0 ? (
-                  <>
-                    <Label>Overall rating</Label>
-                    <p className="text-muted-foreground py-2 text-sm tabular-nums">
-                      Set automatically from area scores ({derivedOverall}/5).
+                  </div>
+                  <div className="max-h-56 overflow-y-auto pr-1">
+                    <ul className="space-y-2.5">
+                      {PERFORMANCE_CHECKLIST.map((item) => (
+                        <li key={item.slug}>
+                          <Controller
+                            name={`checklist.${item.slug}`}
+                            control={form.control}
+                            render={({ field }) => (
+                              <label className="hover:bg-muted/45 flex cursor-pointer items-start gap-2.5 rounded-lg p-2 text-sm transition-colors">
+                                <input
+                                  type="checkbox"
+                                  className="text-primary mt-0.5 size-4 shrink-0 rounded border-input"
+                                  checked={Boolean(field.value)}
+                                  onChange={(e) => field.onChange(e.target.checked)}
+                                />
+                                <span className="min-w-0">
+                                  <span className="leading-snug font-medium">{item.label}</span>
+                                  <span className="text-muted-foreground mt-0.5 block text-xs tabular-nums">
+                                    Weight {item.weight}/{CHECKLIST_TOTAL_WEIGHT}
+                                  </span>
+                                </span>
+                              </label>
+                            )}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <p className="text-muted-foreground text-xs tabular-nums">
+                    Criteria met:{" "}
+                    <span className="text-foreground font-semibold">
+                      {checklistStats.earned}/{checklistStats.max}
+                    </span>{" "}
+                    ({Math.round(checklistStats.pct * 100)}% coverage)
+                  </p>
+                  {checklistOfficial !== null ? (
+                    <p className="text-foreground border-border/70 bg-background/80 rounded-lg border px-3 py-2 text-sm tabular-nums">
+                      Score from checklist: <span className="font-semibold">{checklistOfficial}/5</span>
                     </p>
-                  </>
-                ) : (
-                  <Controller
-                    name="rating"
-                    control={form.control}
-                    render={({ field }) => (
+                  ) : (
+                    <p className="text-muted-foreground text-xs">
+                      Mark at least one criterion-otherwise scoring falls back to your area
+                      averages or manual pick.
+                    </p>
+                  )}
+                </div>
+
+                <div className="border-border/70 bg-card/70 grid gap-3 rounded-xl border p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label>Competency areas</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-0.5"
+                      onClick={() =>
+                        dimensionsFA.append({
+                          label: "",
+                          analysis: "",
+                          rating: 3,
+                        })
+                      }
+                    >
+                      <PlusIcon className="size-3.5" />
+                      Add area
+                    </Button>
+                  </div>
+                  <p className="text-muted-foreground text-xs">
+                    {checklistOfficial !== null ? (
                       <>
-                        <Label htmlFor="rev-rating">Overall (optional)</Label>
-                        <select
-                          id="rev-rating"
-                          {...field}
-                          value={
-                            field.value === null || field.value === undefined
-                              ? ""
-                              : String(field.value)
-                          }
-                          onChange={(e) =>
-                            field.onChange(
-                              e.target.value === ""
-                                ? ""
-                                : Number(e.target.value),
-                            )
-                          }
-                          className={cn(
-                            "border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 h-10 w-full rounded-lg border px-2.5 text-sm outline-none focus-visible:ring-[3px] disabled:opacity-50",
-                          )}
-                        >
-                          <option value="">Not set</option>
-                          {[1, 2, 3, 4, 5].map((n) => (
-                            <option key={n} value={n}>
-                              {n} / 5
-                            </option>
-                          ))}
-                        </select>
+                        Checklist controls the saved HR score (
+                        <span className="text-foreground font-semibold tabular-nums">
+                          {checklistOfficial}/5
+                        </span>
+                        ). Areas capture structured competency evidence for audit trails.
+                      </>
+                    ) : watchedDims && watchedDims.length > 0 ? (
+                      <>
+                        Overall from areas (saved on submit):{" "}
+                        <span className="text-foreground font-semibold tabular-nums">
+                          {derivedOverall}/5
+                        </span>
+                        -rounded mean of row ratings.
+                      </>
+                    ) : (
+                      <>
+                        With no checklist marks, add areas below to derive a score, or enter
+                        an optional overall rating manually on the right.
                       </>
                     )}
+                  </p>
+
+                  <ul className="max-h-[28rem] space-y-4 overflow-y-auto pr-1">
+                    {dimensionsFA.fields.map((fieldItem, idx) => (
+                      <li
+                        key={fieldItem.id}
+                        className="border-border/80 bg-muted/18 space-y-3 rounded-xl border p-3"
+                      >
+                        <div className="flex flex-wrap items-start gap-2">
+                          <div className="grid min-w-0 flex-1 gap-2">
+                            <Label htmlFor={`rev-dim-${idx}-label`}>Area {idx + 1}</Label>
+                            <Input
+                              id={`rev-dim-${idx}-label`}
+                              {...form.register(`dimensions.${idx}.label`)}
+                              placeholder="e.g. Collaboration"
+                            />
+                          </div>
+                          <Controller
+                            name={`dimensions.${idx}.rating`}
+                            control={form.control}
+                            render={({ field }) => (
+                              <div className="grid gap-2 sm:w-[7.25rem]">
+                                <Label htmlFor={`rev-dim-${idx}-rating`}>Score</Label>
+                                <select
+                                  id={`rev-dim-${idx}-rating`}
+                                  value={field.value}
+                                  onChange={(e) => field.onChange(Number(e.target.value))}
+                                  className={cn(
+                                    "border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 h-10 w-full rounded-lg border px-2 text-sm outline-none focus-visible:ring-[3px]",
+                                  )}
+                                >
+                                  {[1, 2, 3, 4, 5].map((n) => (
+                                    <option key={n} value={n}>
+                                      {n} / 5
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-muted-foreground mt-7 shrink-0"
+                            aria-label="Remove area"
+                            onClick={() => dimensionsFA.remove(idx)}
+                          >
+                            <Trash2Icon className="size-4" />
+                          </Button>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor={`rev-dim-${idx}-analysis`}>HR notes / evidence</Label>
+                          <Textarea
+                            id={`rev-dim-${idx}-analysis`}
+                            rows={3}
+                            {...form.register(`dimensions.${idx}.analysis`)}
+                            placeholder="Concrete examples, themes, outcomes..."
+                            className="min-h-[80px]"
+                          />
+                        </div>
+                        {form.formState.errors.dimensions?.[idx] ? (
+                          <p className="text-destructive text-xs">
+                            {[
+                              form.formState.errors.dimensions[idx]?.label?.message,
+                              form.formState.errors.dimensions[idx]?.rating?.message,
+                              form.formState.errors.dimensions[idx]?.analysis?.message,
+                            ]
+                              .filter(Boolean)
+                              .join(" ")}
+                          </p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="min-w-0 space-y-5">
+                <div className="border-border/70 bg-card/70 rounded-xl border p-4">
+                <div className="grid gap-2">
+                  {checklistOfficial !== null ? (
+                    <>
+                      <Label>Official HR rating</Label>
+                      <p className="text-muted-foreground py-2 text-sm tabular-nums">
+                        From checklist weighted score{" "}
+                        <span className="text-foreground font-semibold">{checklistOfficial}/5</span>.
+                        Clear checklist ticks if you need area-based scoring instead.
+                      </p>
+                    </>
+                  ) : watchedDims && watchedDims.length > 0 ? (
+                    <>
+                      <Label>Overall rating</Label>
+                      <p className="text-muted-foreground py-2 text-sm tabular-nums">
+                        Set automatically from area scores ({derivedOverall}/5).
+                      </p>
+                    </>
+                  ) : (
+                    <Controller
+                      name="rating"
+                      control={form.control}
+                      render={({ field }) => (
+                        <>
+                          <Label htmlFor="rev-rating">Overall (optional)</Label>
+                          <select
+                            id="rev-rating"
+                            {...field}
+                            value={
+                              field.value === null || field.value === undefined
+                                ? ""
+                                : String(field.value)
+                            }
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value === "" ? "" : Number(e.target.value),
+                              )
+                            }
+                            className={cn(
+                              "border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 h-10 w-full rounded-lg border px-2.5 text-sm outline-none focus-visible:ring-[3px] disabled:opacity-50",
+                            )}
+                          >
+                            <option value="">Not set</option>
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <option key={n} value={n}>
+                                {n} / 5
+                              </option>
+                            ))}
+                          </select>
+                        </>
+                      )}
+                    />
+                  )}
+                </div>
+                </div>
+                <div className="border-border/70 bg-card/70 rounded-xl border p-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="rev-draft">Manager/TL input (working draft)</Label>
+                  <Textarea
+                    id="rev-draft"
+                    rows={8}
+                    className="min-h-[180px]"
+                    placeholder="Paste raw manager/TL comments, bullet points, or draft narrative..."
+                    {...form.register("ai_draft")}
                   />
-                )}
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="rev-draft">Manager/TL input (working draft)</Label>
-              <Textarea
-                id="rev-draft"
-                rows={7}
-                className="min-h-[116px]"
-                placeholder="Paste raw manager/TL comments, bullet points, or draft narrative…"
-                {...form.register("ai_draft")}
-              />
-              <p className="text-muted-foreground text-xs">
-                Internal drafting area for HR consolidation before final wording.
-              </p>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="rev-final">Final HR summary</Label>
-              <Textarea
-                id="rev-final"
-                rows={9}
-                className="min-h-[148px]"
-                placeholder="Final employee-facing review text for file/communication…"
-                {...form.register("final_review")}
-              />
-              {form.formState.errors.final_review ? (
-                <p className="text-destructive text-xs">
-                  {form.formState.errors.final_review.message}
-                </p>
-              ) : (
-                <p className="text-muted-foreground text-xs">
-                  Include a clear final summary before saving.
-                </p>
-              )}
+                  <p className="text-muted-foreground text-xs">
+                    Internal drafting area for HR consolidation before final wording.
+                  </p>
+                </div>
+                </div>
+                <div className="border-border/70 bg-card/70 rounded-xl border p-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="rev-final">Final HR summary</Label>
+                  <Textarea
+                    id="rev-final"
+                    rows={10}
+                    className="min-h-[240px]"
+                    placeholder="Final employee-facing review text for file/communication..."
+                    {...form.register("final_review")}
+                  />
+                  {form.formState.errors.final_review ? (
+                    <p className="text-destructive text-xs">
+                      {form.formState.errors.final_review.message}
+                    </p>
+                  ) : (
+                    <p className="text-muted-foreground text-xs">
+                      Include a clear final summary before saving.
+                    </p>
+                  )}
+                </div>
+                </div>
+              </div>
             </div>
           </div>
-          <DialogFooter className="p-6 pt-4">
+          <DialogFooter className="bg-background/95 border-border mt-0 shrink-0 border-t p-6 pt-4 supports-[backdrop-filter]:bg-background/80 backdrop-blur">
             <Button type="submit" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? (
                 <>

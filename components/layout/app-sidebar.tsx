@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   CreditCardIcon,
@@ -75,9 +76,9 @@ function NavGroup({
                 "relative flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm outline-none transition-[background,box-shadow,color] duration-200",
                 "hover:bg-sidebar-accent/95 hover:text-sidebar-accent-foreground",
                 active &&
-                  "from-primary/22 to-primary/[0.06] bg-gradient-to-br text-sidebar-accent-foreground font-medium shadow-[0_12px_32px_-20px] shadow-primary/22",
+                  "from-primary/22 to-primary/6 bg-linear-to-br text-sidebar-accent-foreground font-medium shadow-[0_12px_32px_-20px] shadow-primary/22",
                 active &&
-                  "before:pointer-events-none before:absolute before:inset-y-2 before:left-0 before:z-10 before:w-[3px] before:rounded-full before:bg-[color-mix(in_oklab,var(--primary)_92%,transparent)] before:opacity-95",
+                  "before:pointer-events-none before:absolute before:inset-y-2 before:left-0 before:z-10 before:w-0.75 before:rounded-full before:bg-[color-mix(in_oklab,var(--primary)_92%,transparent)] before:opacity-95",
               )}
               initial={
                 prefersReducedMotion ? false : { opacity: 0, x: -10 }
@@ -97,7 +98,7 @@ function NavGroup({
                 prefersReducedMotion ? undefined : { scale: 0.992 }
               }
             >
-              <Icon className={cn("size-[1.125rem]", active && "opacity-95")} />
+              <Icon className={cn("size-4.5", active && "opacity-95")} />
               {label}
             </MotionLink>
           );
@@ -112,30 +113,33 @@ export function AppSidebar(): React.ReactElement {
   const prefersReducedMotion = useReducedMotion() === true;
 
   return (
-    <aside className="bg-sidebar/94 supports-backdrop-filter:bg-sidebar/86 text-sidebar-foreground border-sidebar-border flex h-full min-h-0 w-[226px] shrink-0 flex-col border-r backdrop-blur-xl md:w-[252px]">
+    <aside className="bg-sidebar/94 supports-backdrop-filter:bg-sidebar/86 text-sidebar-foreground border-sidebar-border flex h-full min-h-0 w-56.5 shrink-0 flex-col border-r backdrop-blur-xl md:w-63">
       <motion.div
-        className="from-primary/[0.11] relative flex shrink-0 items-center gap-3 border-sidebar-border bg-gradient-to-br to-transparent px-4 py-[1.125rem]"
+        className="from-primary/11 relative flex shrink-0 items-center border-sidebar-border bg-linear-to-br to-transparent py-2 px-2"
         initial={prefersReducedMotion ? false : { opacity: 0, y: -4 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: easingOut }}
       >
-        <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg shadow-md shadow-primary/15">
-          <span className="font-heading text-xs font-bold tracking-tight">P</span>
-        </div>
-        <div className="min-w-0">
-          <Link
-            href="/dashboard"
-            className="font-heading text-sidebar-foreground block truncate text-sm font-semibold tracking-tight"
-          >
-            Performa
-          </Link>
-          <p className="text-muted-foreground truncate text-[11px]">
-            Workspace
-          </p>
-        </div>
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-2 rounded-xl px-1 py-1 transition-transform duration-200 hover:scale-[1.01]"
+          aria-label="Go to dashboard"
+          title="Dashboard"
+        >
+          <Image
+            src="/brand/performaai-mark.png"
+            alt="PerformaAi"
+            width={30}
+            height={30}
+            className="size-7 object-contain"
+          />
+          <span className="font-heading text-sidebar-foreground text-lg font-bold tracking-tight">
+            PerformaAi
+          </span>
+        </Link>
       </motion.div>
 
-      <div className="mx-4 h-px bg-gradient-to-r from-transparent via-sidebar-border to-transparent opacity-85" />
+      <div className="mx-4 h-px bg-linear-to-r from-transparent via-sidebar-border to-transparent opacity-85" />
 
       <nav aria-label="Main" className="flex flex-1 flex-col gap-5 overflow-y-auto p-3.5 pb-6">
         <NavGroup

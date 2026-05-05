@@ -64,8 +64,8 @@ export function ProfileForm({ initial }: { initial: ProfileFormInitial }) {
     const trimmedYears = years.trim();
     if (trimmedYears.length > 0) {
       const n = Number(trimmedYears);
-      if (!Number.isInteger(n)) {
-        setError("Years of experience must be a whole number.");
+      if (!Number.isFinite(n)) {
+        setError("Enter a valid years of experience value.");
         return;
       }
       yearsParsed = n;
@@ -198,16 +198,20 @@ export function ProfileForm({ initial }: { initial: ProfileFormInitial }) {
                     <Label htmlFor="profile-years">Years of experience</Label>
                     <Input
                       id="profile-years"
-                      inputMode="numeric"
+                      inputMode="decimal"
                       placeholder="Leave blank if not applicable"
                       value={years}
                       onChange={(ev) =>
-                        setYears(ev.target.value.replace(/\D/g, ""))
+                        setYears(
+                          ev.target.value
+                            .replace(/[^\d.]/g, "")
+                            .replace(/(\..*)\./g, "$1"),
+                        )
                       }
                       className="focus-visible:ring-primary/25 rounded-xl tabular-nums"
                     />
                     <p className="text-muted-foreground text-xs">
-                      Approximate professional experience in whole years (0–60).
+                      Approximate professional experience in years (decimals allowed, e.g. 2.5).
                     </p>
                   </div>
                 </div>

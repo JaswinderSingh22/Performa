@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 
 import type {
-  LeaderboardSlice,
+  OrgTopRanking,
   RecentReviewRow,
   TeamSlice,
 } from "@/components/dashboard/dashboard-view";
@@ -30,10 +30,12 @@ function embedEmployeeName(
   return rel.name?.trim() ? rel.name : "Employee";
 }
 
-type PublishedRatedRow = {
-  employee_id: string;
+type OrgRatedRow = {
   rating: number;
-  employees: { name: string } | { name: string }[] | null;
+  employees:
+    | { name: string | null; team_name: string | null; department: string | null }
+    | { name: string | null; team_name: string | null; department: string | null }[]
+    | null;
 };
 
 export default async function DashboardPage(): Promise<ReactElement | null> {
@@ -43,31 +45,28 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
 
   const [
     employeeCountRes,
+    teamCountRes,
+    departmentCountRes,
     reviewCountRes,
-    achievementCountRes,
-    noteCountRes,
     reviewsStatusRes,
     employeesTeamsRes,
-    achievementEmployeesRes,
-    noteEmployeesRes,
-    reviewEmployeesRes,
     recentReviewsRes,
-    publishedRatedRes,
+    orgRatedRes,
   ] = await Promise.all([
     access.supabase
       .from("employees")
       .select("id", { count: "exact", head: true })
       .eq("org_id", orgId),
     access.supabase
+      .from("teams")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", orgId),
+    access.supabase
+      .from("departments")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", orgId),
+    access.supabase
       .from("reviews")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", orgId),
-    access.supabase
-      .from("achievements")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", orgId),
-    access.supabase
-      .from("employee_notes")
       .select("id", { count: "exact", head: true })
       .eq("org_id", orgId),
     access.supabase
@@ -75,18 +74,6 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
       .select("status, rating")
       .eq("org_id", orgId),
     access.supabase.from("employees").select("team_name").eq("org_id", orgId),
-    access.supabase
-      .from("achievements")
-      .select("employee_id")
-      .eq("org_id", orgId),
-    access.supabase
-      .from("employee_notes")
-      .select("employee_id")
-      .eq("org_id", orgId),
-    access.supabase
-      .from("reviews")
-      .select("employee_id")
-      .eq("org_id", orgId),
     access.supabase
       .from("reviews")
       .select(
@@ -97,33 +84,24 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
       .limit(8),
     access.supabase
       .from("reviews")
-      .select(`employee_id, rating, employees ( name )`)
+      .select(`rating, employees ( name, team_name, department )`)
       .eq("org_id", orgId)
       .not("rating", "is", null),
   ]);
 
   const employeeCount = employeeCountRes.error ? 0 : employeeCountRes.count ?? 0;
+  const teamCount = teamCountRes.error ? 0 : teamCountRes.count ?? 0;
+  const departmentCount = departmentCountRes.error ? 0 : departmentCountRes.count ?? 0;
   const reviewCount = reviewCountRes.error ? 0 : reviewCountRes.count ?? 0;
-  const achievementCount = achievementCountRes.error
-    ? 0
-    : (achievementCountRes.count ?? 0);
-  const noteCount = noteCountRes.error ? 0 : noteCountRes.count ?? 0;
 
-  let ratedReviewSum = 0;
   let ratedReviewCount = 0;
   if (!reviewsStatusRes.error && reviewsStatusRes.data) {
     for (const row of reviewsStatusRes.data) {
       if (row.rating !== null && row.rating !== undefined) {
-        ratedReviewSum += row.rating;
         ratedReviewCount += 1;
       }
     }
   }
-  const avgRatingPublished =
-    ratedReviewCount > 0
-      ? Math.round((ratedReviewSum / ratedReviewCount) * 10) / 10
-      : null;
-
   const teams: TeamSlice[] = [];
   if (!employeesTeamsRes.error && employeesTeamsRes.data) {
     const m = new Map<string, number>();
@@ -151,84 +129,87 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
           createdAt: r.created_at,
         }));
 
-  /** Avg review score per person (numeric ratings only). */
-  const agg = new Map<
-    string,
-    { sum: number; n: number; name: string }
-  >();
-
-  const pubRows =
-    publishedRatedRes.error || !publishedRatedRes.data
+  const ratedRows =
+    orgRatedRes.error || !orgRatedRes.data
       ? []
-      : (publishedRatedRes.data as unknown as PublishedRatedRow[]);
+      : (orgRatedRes.data as unknown as OrgRatedRow[]);
 
-  for (const row of pubRows) {
-    const id = row.employee_id;
-    const nm = embedEmployeeName(row.employees);
-    const prev = agg.get(id);
-    if (!prev) {
-      agg.set(id, { sum: row.rating, n: 1, name: nm });
-    } else {
-      agg.set(id, {
-        ...prev,
-        sum: prev.sum + row.rating,
-        n: prev.n + 1,
-      });
-    }
+  const teamAgg = new Map<string, { sum: number; count: number }>();
+  const employeeAgg = new Map<string, { sum: number; count: number }>();
+  const departmentAgg = new Map<string, { sum: number; count: number }>();
+
+  for (const row of ratedRows) {
+    const rel = Array.isArray(row.employees) ? relFromArray(row.employees) : row.employees;
+    const team = rel?.team_name?.trim() || "Unassigned";
+    const employee = rel?.name?.trim() || "Unknown";
+    const department = rel?.department?.trim() || "Unassigned";
+    incrementAgg(teamAgg, team, row.rating);
+    incrementAgg(employeeAgg, employee, row.rating);
+    incrementAgg(departmentAgg, department, row.rating);
   }
 
-  const leaderboard = [...agg.entries()]
-    .map(([employeeId, v]) => ({
-      employeeId,
-      employeeName: v.name,
-      avgRating: Math.round((v.sum / Math.max(v.n, 1)) * 10) / 10,
-      reviewCount: v.n,
-    }))
-    .sort((a, b) => {
-      if (b.avgRating !== a.avgRating) return b.avgRating - a.avgRating;
-      return a.employeeName.localeCompare(b.employeeName);
-    });
-
-  const topRated: LeaderboardSlice[] = leaderboard.slice(0, 3);
-  const ascending = [...leaderboard].sort((a, b) => {
-    if (a.avgRating !== b.avgRating) return a.avgRating - b.avgRating;
-    return a.employeeName.localeCompare(b.employeeName);
-  });
-  const needsAttention: LeaderboardSlice[] = ascending.slice(0, 3);
+  const topTeams = toTopRankings(teamAgg, 3);
+  const topEmployees = toTopRankings(employeeAgg, 3);
+  const topDepartments = toTopRankings(departmentAgg, 3);
 
   const analyticsProps = {
     employeeCount,
+    teamCount,
+    departmentCount,
     reviewCount,
-    achievementCount,
-    noteCount,
-    achievementsCoveredEmployeeCount:
-      achievementEmployeesRes.error || !achievementEmployeesRes.data
-        ? 0
-        : new Set(achievementEmployeesRes.data.map((r) => r.employee_id)).size,
-    notesCoveredEmployeeCount:
-      noteEmployeesRes.error || !noteEmployeesRes.data
-        ? 0
-        : new Set(noteEmployeesRes.data.map((r) => r.employee_id)).size,
-    reviewsCoveredEmployeeCount:
-      reviewEmployeesRes.error || !reviewEmployeesRes.data
-        ? 0
-        : new Set(reviewEmployeesRes.data.map((r) => r.employee_id)).size,
-    avgRating: avgRatingPublished,
     ratedReviewCount,
     teams,
     recentReviews,
     teamsError: Boolean(employeesTeamsRes.error),
-    topRated,
-    needsAttention,
+    topTeams,
+    topEmployees,
+    topDepartments,
   };
 
   return (
     <>
       <DashboardHeader
         title="Dashboard"
-        description="Employees, review records & scores, achievements, and notes at a glance."
+        description="Organisation-level snapshot across teams, departments, and review quality."
       />
       <DashboardView {...analyticsProps} />
     </>
   );
+}
+
+function relFromArray(
+  rel: { name: string | null; team_name: string | null; department: string | null }[],
+): { name: string | null; team_name: string | null; department: string | null } | null {
+  return rel[0] ?? null;
+}
+
+function incrementAgg(
+  map: Map<string, { sum: number; count: number }>,
+  key: string,
+  value: number,
+): void {
+  const prev = map.get(key);
+  if (!prev) {
+    map.set(key, { sum: value, count: 1 });
+    return;
+  }
+  map.set(key, { sum: prev.sum + value, count: prev.count + 1 });
+}
+
+function toTopRankings(
+  map: Map<string, { sum: number; count: number }>,
+  limit: number,
+): OrgTopRanking[] {
+  return [...map.entries()]
+    .map(([name, v]) => ({
+      name,
+      avgRating: Math.round((v.sum / v.count) * 10) / 10,
+      reviewCount: v.count,
+    }))
+    .sort((a, b) => {
+      if (b.avgRating !== a.avgRating) return b.avgRating - a.avgRating;
+      if (b.reviewCount !== a.reviewCount) return b.reviewCount - a.reviewCount;
+      return a.name.localeCompare(b.name);
+    })
+    .slice(0, limit);
 }
