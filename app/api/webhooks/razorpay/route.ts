@@ -109,13 +109,25 @@ export async function POST(request: Request): Promise<Response> {
     return new Response("ok", { status: 200 });
   }
 
-  if (
-    event === "subscription.cancelled" ||
-    event === "subscription.completed" ||
-    event === "subscription.expired"
-  ) {
-    // Only downgrade the org that still owns this subscription id (ignore stale
-    // cancellations after an in-app upgrade swapped to a new Razorpay subscription).
+  if (event === "subscription.cancelled") {
+    // User cancelled auto-renew. Keep paid plan access till current period end;
+    // do not downgrade immediately to free.
+    if (!orgBySub?.id) {
+      return new Response("ok", { status: 200 });
+    }
+    await admin
+      .from("organizations")
+      .update({
+        subscription_status: statusStr || "cancelled",
+        subscription_current_end: periodEnd,
+      })
+      .eq("id", orgBySub.id)
+      .eq("razorpay_subscription_id", subId);
+    return new Response("ok", { status: 200 });
+  }
+
+  if (event === "subscription.completed" || event === "subscription.expired") {
+    // Terminal state: paid period is over; move org back to free.
     if (!orgBySub?.id) {
       return new Response("ok", { status: 200 });
     }

@@ -334,11 +334,14 @@ export function BillingPlansPanel({
               <>
                 You can upgrade to Pro+ from this page. To cancel billing or downgrade,
                 use the links in Razorpay subscription emails or your Razorpay dashboard.
+                If you cancel auto-renew, access stays on your paid tier until the current
+                billing period ends.
               </>
             ) : (
               <>
                 To cancel or change billing, use the links in Razorpay subscription emails
-                or your Razorpay dashboard. Performa syncs status from Razorpay webhooks.
+                or your Razorpay dashboard. If you cancel auto-renew, access stays on your
+                paid tier until the current billing period ends.
               </>
             )}
           </p>
