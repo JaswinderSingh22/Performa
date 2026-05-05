@@ -1,9 +1,31 @@
-/**
- * Workspace seat & AI limits (enforced server-side). Currency is always INR in-app.
- */
 export type PlanId = "free" | "pro" | "pro_plus";
 
 export const PLAN_IDS: readonly PlanId[] = ["free", "pro", "pro_plus"];
+
+export type PlanFeature =
+  | "basic_rollups"
+  | "limited_reviews"
+  | "departments"
+  | "teams"
+  | "rollups"
+  | "reviews"
+  | "standard_cadence"
+  | "advanced_analytics"
+  | "bias_detection"
+  | "priority_support";
+
+export type InternalUsageLimit = {
+  orgMonthly: number;
+};
+
+export type PlanConfig = {
+  maxEmployees: number | "unlimited";
+  aiUsageVisible: boolean;
+  features: PlanFeature[];
+  priceMonthlyInr?: number;
+  /** Internal-only quota config for backend enforcement. */
+  internalUsageLimit: InternalUsageLimit;
+};
 
 export function normalizePlan(raw: string | null | undefined): PlanId {
   const p = (raw ?? "free").toLowerCase().trim();
@@ -11,45 +33,73 @@ export function normalizePlan(raw: string | null | undefined): PlanId {
   return "free";
 }
 
-export type PlanLimits = {
-  /** Max people (employees) in directory */
-  seats: number;
-  /** Max AI roll-up assists per employee per calendar month (UTC) */
-  aiPerEmployeePerMonth: number;
-  /** Hard cap on AI assists for the whole org per month (UTC) */
-  aiOrgMonthlyCap: number;
-};
-
-/** Sentinel for "no practical cap" in plan checks/UI. */
+/** Sentinel for unlimited internal limits in server checks. */
 export const UNLIMITED_LIMIT = Number.MAX_SAFE_INTEGER;
 
 export function isUnlimitedLimit(value: number): boolean {
   return value >= UNLIMITED_LIMIT;
 }
 
-export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
+export const PLANS: Record<PlanId, PlanConfig> = {
   free: {
-    seats: 5,
-    aiPerEmployeePerMonth: 5,
-    aiOrgMonthlyCap: 5,
+    maxEmployees: 5,
+    aiUsageVisible: false,
+    features: ["basic_rollups", "limited_reviews"],
+    internalUsageLimit: {
+      orgMonthly: 10,
+    },
   },
   pro: {
-    seats: 100,
-    aiPerEmployeePerMonth: UNLIMITED_LIMIT,
-    aiOrgMonthlyCap: 1000,
+    priceMonthlyInr: 9_999,
+    maxEmployees: 100,
+    aiUsageVisible: false,
+    features: ["departments", "teams", "rollups", "reviews", "standard_cadence"],
+    internalUsageLimit: {
+      orgMonthly: 1_500,
+    },
   },
   pro_plus: {
-    seats: UNLIMITED_LIMIT,
-    aiPerEmployeePerMonth: 20,
-    aiOrgMonthlyCap: UNLIMITED_LIMIT,
+    priceMonthlyInr: 24_999,
+    maxEmployees: "unlimited",
+    aiUsageVisible: false,
+    features: [
+      "departments",
+      "teams",
+      "rollups",
+      "reviews",
+      "standard_cadence",
+      "advanced_analytics",
+      "bias_detection",
+      "priority_support",
+    ],
+    internalUsageLimit: {
+      orgMonthly: 5_000,
+    },
   },
 };
 
-/** Display prices in INR (Razorpay charges in INR regardless of manager country). */
 export const PLAN_PRICES_INR = {
-  pro: { monthly: 9_999, yearly: 99_990 },
-  pro_plus: { monthly: 19_999, yearly: 199_990 },
+  pro: { monthly: PLANS.pro.priceMonthlyInr ?? 9_999, yearly: 99_990 },
+  pro_plus: { monthly: PLANS.pro_plus.priceMonthlyInr ?? 24_999, yearly: 249_990 },
 } as const;
+
+export function getPlanConfig(plan: PlanId): PlanConfig {
+  return PLANS[plan];
+}
+
+export function getMaxEmployees(plan: PlanId): number {
+  const max = PLANS[plan].maxEmployees;
+  return max === "unlimited" ? UNLIMITED_LIMIT : max;
+}
+
+export function getInternalUsageLimit(plan: PlanId): {
+  orgMonthlyCap: number;
+} {
+  const u = PLANS[plan].internalUsageLimit;
+  return {
+    orgMonthlyCap: u.orgMonthly,
+  };
+}
 
 export function formatInr(amount: number): string {
   return new Intl.NumberFormat("en-IN", {

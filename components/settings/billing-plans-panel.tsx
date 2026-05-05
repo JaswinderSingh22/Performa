@@ -21,11 +21,10 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
-  PLAN_LIMITS,
+  PLANS,
   PLAN_PRICES_INR,
   effectiveMonthlyYearly,
   formatInr,
-  isUnlimitedLimit,
   normalizePlan,
   paidPlanTier,
   planLabel,
@@ -83,20 +82,20 @@ function loadCheckoutScript(): Promise<void> {
 }
 
 function featureList(plan: Exclude<PlanId, "free">): string[] {
-  const L = PLAN_LIMITS[plan];
-  const seatsText = isUnlimitedLimit(L.seats)
-    ? "Unlimited people in your directory"
-    : `Up to ${L.seats} people in your directory`;
-  const orgAiText = isUnlimitedLimit(L.aiOrgMonthlyCap)
-    ? "No org-wide monthly AI cap"
-    : `${L.aiOrgMonthlyCap} AI roll-up assists / workspace each month`;
-  const perEmpText = isUnlimitedLimit(L.aiPerEmployeePerMonth)
-    ? "No per-employee monthly AI cap"
-    : `${L.aiPerEmployeePerMonth} assists per employee / month`;
+  const config = PLANS[plan];
+  const seatsText =
+    config.maxEmployees === "unlimited"
+      ? "Unlimited people in your directory"
+      : `Up to ${config.maxEmployees} people in your directory`;
   return [
     seatsText,
-    orgAiText,
-    perEmpText,
+    ...config.features
+      .filter((f) => f === "advanced_analytics" || f === "priority_support")
+      .map((f) =>
+        f === "advanced_analytics" ? "Advanced analytics insights" : "Priority support"
+      ),
+    "AI-powered roll-ups included",
+    "Fair usage applies",
     "Invoices settle in ₹ INR through Razorpay",
   ];
 }
@@ -186,9 +185,9 @@ export function BillingPlansPanel({
           </Badge>
         </div>
         <CardDescription className="max-w-2xl text-pretty leading-relaxed">
-          Built for org-level usage: higher seat capacity, larger monthly AI quotas,
-          and predictable INR billing via Razorpay. We never store card numbers on our
-          servers.
+          Built for org-level usage with predictable INR billing via Razorpay.
+          AI-powered roll-ups are included and fair usage applies. We never store
+          card numbers on our servers.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6 pt-2">
@@ -247,8 +246,7 @@ export function BillingPlansPanel({
               {formatInr(0)}
             </p>
             <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-              {PLAN_LIMITS.free.seats} people · {PLAN_LIMITS.free.aiOrgMonthlyCap} AI
-              assists total / month workspace-wide.
+              {PLANS.free.maxEmployees} people · AI-powered roll-ups included.
             </p>
             <ul className="text-muted-foreground mt-4 space-y-2 text-xs leading-relaxed">
               <li className="flex gap-2">
@@ -257,7 +255,11 @@ export function BillingPlansPanel({
               </li>
               <li className="flex gap-2">
                 <CheckCircle2Icon className="text-primary mt-0.5 size-3.5 shrink-0" />
-                Roll-up wizard (manual + limited AI)
+                AI-powered roll-ups included
+              </li>
+              <li className="flex gap-2">
+                <CheckCircle2Icon className="text-primary mt-0.5 size-3.5 shrink-0" />
+                Fair usage applies
               </li>
             </ul>
           </div>
@@ -363,8 +365,8 @@ export function BillingPlansPanel({
         ) : null}
       </CardContent>
       <CardFooter className="text-muted-foreground border-border/60 border-t bg-muted/10 text-[11px] leading-relaxed">
-        Limits and pricing are org-wide. If your hiring or AI usage grows beyond plan
-        quotas, upgrade anytime to increase capacity.
+        Limits and pricing are org-wide. AI-powered roll-ups are included and fair
+        usage applies.
       </CardFooter>
     </Card>
   );

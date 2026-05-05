@@ -8,9 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { utcMonthKey } from "@/lib/billing/ai-limits";
 import { getOrgAccess } from "@/lib/org-context";
-import { isUnlimitedLimit, normalizePlan, PLAN_LIMITS, planLabel } from "@/lib/plans";
+import { getPlanConfig, isUnlimitedLimit, normalizePlan, planLabel } from "@/lib/plans";
 
 function percent(used: number, limit: number): number {
   if (limit <= 0) return 0;
@@ -28,9 +27,7 @@ function meterClass(used: number, limit: number): string {
 export default async function UsagePage(): Promise<ReactElement | null> {
   const access = await getOrgAccess();
   if (!access) return null;
-
-  const monthKey = utcMonthKey();
-  const [{ data: org }, empCountRes, achCountRes, noteCountRes, reviewCountRes, aiRes] =
+  const [{ data: org }, empCountRes, achCountRes, noteCountRes, reviewCountRes] =
     await Promise.all([
       access.supabase
         .from("organizations")
@@ -53,32 +50,23 @@ export default async function UsagePage(): Promise<ReactElement | null> {
         .from("reviews")
         .select("id", { count: "exact", head: true })
         .eq("org_id", access.orgId),
-      access.supabase
-        .from("employee_ai_generation_usage")
-        .select("employee_id, count")
-        .eq("org_id", access.orgId)
-        .eq("month_key", monthKey),
     ]);
 
   const plan = normalizePlan(org?.plan);
-  const limits = PLAN_LIMITS[plan];
+  const config = getPlanConfig(plan);
 
   const employeesUsed = empCountRes.count ?? 0;
-  const seatsLeft = isUnlimitedLimit(limits.seats)
+  const seatsCap =
+    config.maxEmployees === "unlimited" ? Number.MAX_SAFE_INTEGER : config.maxEmployees;
+  const seatsLeft = isUnlimitedLimit(seatsCap)
     ? null
-    : Math.max(0, limits.seats - employeesUsed);
-
-  const aiRows = aiRes.data ?? [];
-  const aiOrgUsed = aiRows.reduce((acc, row) => acc + (row.count ?? 0), 0);
-  const aiOrgLeft = isUnlimitedLimit(limits.aiOrgMonthlyCap)
-    ? null
-    : Math.max(0, limits.aiOrgMonthlyCap - aiOrgUsed);
+    : Math.max(0, seatsCap - employeesUsed);
 
   return (
     <>
       <DashboardHeader
         title="Usage"
-        description="Track org-level quotas, remaining capacity, and monthly AI roll-up usage."
+        description="Track plan capacity and workspace usage."
       />
       <main className="flex-1 overflow-x-auto p-6 pb-14">
         <div className="mx-auto grid w-full max-w-5xl gap-4 lg:grid-cols-2">
@@ -94,40 +82,26 @@ export default async function UsagePage(): Promise<ReactElement | null> {
               <div className="space-y-1">
                 <p className="text-sm font-medium">Directory seats</p>
                 <p className="text-muted-foreground text-sm">
-                  {isUnlimitedLimit(limits.seats)
+                  {isUnlimitedLimit(seatsCap)
                     ? `${employeesUsed} used · unlimited seats`
-                    : `${employeesUsed}/${limits.seats} used · ${seatsLeft ?? 0} remaining`}
+                    : `${employeesUsed}/${seatsCap} used · ${seatsLeft ?? 0} remaining`}
                 </p>
-                {!isUnlimitedLimit(limits.seats) ? (
+                {!isUnlimitedLimit(seatsCap) ? (
                   <div className="bg-muted h-2.5 rounded-full">
                     <div
-                      className={`h-2.5 rounded-full ${meterClass(employeesUsed, limits.seats)}`}
-                      style={{ width: `${percent(employeesUsed, limits.seats)}%` }}
+                      className={`h-2.5 rounded-full ${meterClass(employeesUsed, seatsCap)}`}
+                      style={{ width: `${percent(employeesUsed, seatsCap)}%` }}
                     />
                   </div>
                 ) : null}
               </div>
 
               <div className="space-y-1">
-                <p className="text-sm font-medium">AI assists this month ({monthKey})</p>
+                <p className="text-sm font-medium">AI roll-ups</p>
                 <p className="text-muted-foreground text-sm">
-                  {isUnlimitedLimit(limits.aiOrgMonthlyCap)
-                    ? `${aiOrgUsed} used · no org-wide cap`
-                    : `${aiOrgUsed}/${limits.aiOrgMonthlyCap} used · ${aiOrgLeft ?? 0} remaining`}
+                  AI-powered roll-ups included
                 </p>
-                {!isUnlimitedLimit(limits.aiOrgMonthlyCap) ? (
-                  <div className="bg-muted h-2.5 rounded-full">
-                    <div
-                      className={`h-2.5 rounded-full ${meterClass(aiOrgUsed, limits.aiOrgMonthlyCap)}`}
-                      style={{ width: `${percent(aiOrgUsed, limits.aiOrgMonthlyCap)}%` }}
-                    />
-                  </div>
-                ) : null}
-                <p className="text-muted-foreground text-xs">
-                  {isUnlimitedLimit(limits.aiPerEmployeePerMonth)
-                    ? "Per employee cap: no monthly limit."
-                    : `Per employee cap: ${limits.aiPerEmployeePerMonth} assists/month.`}
-                </p>
+                <p className="text-muted-foreground text-xs">Fair usage applies</p>
               </div>
             </CardContent>
           </Card>

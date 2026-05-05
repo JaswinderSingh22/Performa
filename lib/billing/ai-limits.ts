@@ -2,9 +2,9 @@ import "server-only";
 
 import type { OrgAccess } from "@/lib/org-context";
 import {
+  getInternalUsageLimit,
   isUnlimitedLimit,
   normalizePlan,
-  PLAN_LIMITS,
   type PlanId,
 } from "@/lib/plans";
 
@@ -21,6 +21,7 @@ export async function assertAiAssistAllowedForEmployee(
   access: OrgAccess,
   employeeId: string,
 ): Promise<AiQuotaCheck> {
+  void employeeId;
   const { data: org, error: orgErr } = await access.supabase
     .from("organizations")
     .select("plan")
@@ -35,48 +36,36 @@ export async function assertAiAssistAllowedForEmployee(
   }
 
   const plan: PlanId = normalizePlan(org.plan);
-  const limits = PLAN_LIMITS[plan];
+  const limits = getInternalUsageLimit(plan);
 
   const monthKey = utcMonthKey();
+  const { data: usageRows } = await access.supabase
+    .from("employee_ai_generation_usage")
+    .select("count")
+    .eq("org_id", access.orgId)
+    .eq("month_key", monthKey);
 
-  const [{ data: usageRows }, { data: employeeRow }] = await Promise.all([
-    access.supabase
-      .from("employee_ai_generation_usage")
-      .select("count")
-      .eq("org_id", access.orgId)
-      .eq("month_key", monthKey),
-    access.supabase
-      .from("employee_ai_generation_usage")
-      .select("count")
-      .eq("org_id", access.orgId)
-      .eq("employee_id", employeeId)
-      .eq("month_key", monthKey)
-      .maybeSingle(),
-  ]);
+  // Org usage is the SUM(count) for this month bucket.
+  const orgMonthlyTotal = usageRows?.reduce((acc, row) => acc + (row.count ?? 0), 0) ?? 0;
 
-  const orgMonthlyTotal =
-    usageRows?.reduce((acc, row) => acc + (row.count ?? 0), 0) ?? 0;
-  const employeeMonth = employeeRow?.count ?? 0;
-
-  if (!isUnlimitedLimit(limits.aiOrgMonthlyCap) && orgMonthlyTotal >= limits.aiOrgMonthlyCap) {
-    const hint =
-      plan === "free"
-        ? "Upgrade to Pro for more AI-assisted roll-ups (still billed in ₹)."
-        : "Your workspace hit this month\u2019s AI assist cap. Try again next month or contact support.";
-    return {
-      ok: false,
-      reason: `This workspace has used all ${limits.aiOrgMonthlyCap} AI assists for this calendar month (UTC). ${hint}`,
-    };
+  if (!isUnlimitedLimit(limits.orgMonthlyCap) && orgMonthlyTotal >= limits.orgMonthlyCap) {
+    console.warn("AI soft limit exceeded", {
+      org_id: access.orgId,
+      plan,
+      usage: orgMonthlyTotal,
+      limit: limits.orgMonthlyCap,
+      timestamp: new Date().toISOString(),
+    });
   }
 
-  if (
-    !isUnlimitedLimit(limits.aiPerEmployeePerMonth) &&
-    employeeMonth >= limits.aiPerEmployeePerMonth
-  ) {
-    return {
-      ok: false,
-      reason: `Under your ${plan} plan, each person can use up to ${limits.aiPerEmployeePerMonth} AI assist(s) per month for this workspace.`,
-    };
+  if (!isUnlimitedLimit(limits.orgMonthlyCap) && orgMonthlyTotal > limits.orgMonthlyCap * 2) {
+    console.error("Extreme AI usage spike detected", {
+      org_id: access.orgId,
+      plan,
+      usage: orgMonthlyTotal,
+      limit: limits.orgMonthlyCap,
+      timestamp: new Date().toISOString(),
+    });
   }
 
   return { ok: true };
