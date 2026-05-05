@@ -162,7 +162,7 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
             ) : null}
 
             <section className="space-y-3">
-              <div className="flex items-end justify-between gap-3">
+              {/* <div className="flex items-end justify-between gap-3">
                 <div>
                   <h2 className="font-heading text-sm font-semibold">Active</h2>
                   <p className="text-muted-foreground mt-1 text-xs">
@@ -172,7 +172,7 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
                 <p className="text-muted-foreground text-xs tabular-nums">
                   {activeEmployees.length} employees
                 </p>
-              </div>
+              </div> */}
               <AnimatedEmployeesTable employees={activeEmployees} />
             </section>
 

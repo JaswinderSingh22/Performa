@@ -5,14 +5,6 @@ import type { ReactElement } from "react";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import type { EmployeeRow } from "@/types/database";
 import { cn } from "@/lib/utils";
@@ -24,13 +16,13 @@ export type EmployeeListRow = EmployeeRow & {
   notes_count: number;
 };
 
-const MotionTableRow = motion.create(TableRow);
+const MotionRow = motion.create("div");
 
 function CountBadge({ value }: { value: number }): ReactElement {
   return (
     <span
       className={cn(
-        "inline-flex min-w-[1.95rem] justify-center rounded-lg border px-2 py-0.5 text-xs font-semibold tabular-nums",
+        "inline-flex min-w-[1.8rem] items-center justify-center rounded-md border px-2 py-0.5 text-xs font-semibold tabular-nums",
         value > 0
           ? "bg-primary/9 text-primary border-primary/14"
           : "border-border/60 bg-muted/45 text-muted-foreground",
@@ -201,37 +193,53 @@ export function AnimatedEmployeesTable({
         </div>
       </div>
       <div className="bg-card border-border/70 overflow-hidden rounded-xl border shadow-sm">
-        <div className="overflow-x-auto">
-          <div className="min-w-[1040px]">
-            <Table className="border-separate border-spacing-0">
-              <TableHeader>
-                <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border/80">
-                  <TableHead className="bg-muted/65 w-[70px] px-4 text-center">S.No</TableHead>
-                  <TableHead className="bg-muted/65 w-[170px] px-4">Name</TableHead>
-                  <TableHead className="bg-muted/65 w-[220px] px-4">Email</TableHead>
-                  <TableHead className="bg-muted/65 w-[150px] px-4">Role</TableHead>
-                  <TableHead className="bg-muted/65 w-[140px] px-4">Department</TableHead>
-                  <TableHead className="bg-muted/65 w-[140px] px-4">Team</TableHead>
-                  <TableHead className="bg-muted/65 w-[120px] px-4 text-center">Joined</TableHead>
-                  <TableHead className="bg-muted/65 w-[110px] px-4 text-center tabular-nums">
-                    Achievements
-                  </TableHead>
-                  <TableHead className="bg-muted/65 w-[90px] px-4 text-center tabular-nums">
-                    Reviews
-                  </TableHead>
-                  <TableHead className="bg-muted/65 w-[90px] px-4 text-center tabular-nums">
-                    Notes
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-            </Table>
-            <div className="max-h-[520px] overflow-y-auto">
-              <Table className="border-separate border-spacing-0">
-                <TableBody>
-                  {visibleEmployees.map((employee, index) => {
-                    const isLocked = lockedSet.has(employee.id);
-                    return (
-                    <MotionTableRow
+        <div className="relative max-h-[520px] overflow-auto">
+          <div className="inline-block min-w-max">
+            <div
+              className={cn(
+                "sticky top-0 z-30 grid bg-muted text-xs font-semibold text-foreground",
+                "border-b border-border/60",
+              )}
+              style={{
+                gridTemplateColumns:
+                  "70px 180px 240px 160px 150px 150px 120px 120px 100px 100px",
+              }}
+            >
+              {[
+                "S.No",
+                "Name",
+                "Email",
+                "Role",
+                "Department",
+                "Team",
+                "Joined",
+                "Achievements",
+                "Reviews",
+                "Notes",
+              ].map((h, idx) => (
+                <div
+                  key={h}
+                  className={cn(
+                    "px-3 py-2 text-left",
+                    "border-border/60 border-r",
+                    idx === 9 ? "border-r-0" : null,
+                  )}
+                >
+                  {h}
+                </div>
+              ))}
+            </div>
+
+            <div className="text-sm">
+              {visibleEmployees.length === 0 ? (
+                <div className="text-muted-foreground px-4 py-10 text-center">
+                  No employees match current search or filters.
+                </div>
+              ) : (
+                visibleEmployees.map((employee, index) => {
+                  const isLocked = lockedSet.has(employee.id);
+                  return (
+                    <MotionRow
                       key={employee.id}
                       {...(prefersReducedMotion
                         ? {}
@@ -245,18 +253,21 @@ export function AnimatedEmployeesTable({
                             },
                           })}
                       className={cn(
-                        "group hover:bg-muted/20 cursor-pointer border-b border-border/65",
+                        "grid items-center border-b border-border/60",
+                        "hover:bg-muted/30 cursor-pointer",
                         isLocked ? "opacity-80" : null,
                       )}
+                      style={{
+                        gridTemplateColumns:
+                          "70px 180px 240px 160px 150px 150px 120px 120px 100px 100px",
+                      }}
                       role="button"
                       tabIndex={0}
                       onClick={() => router.push(`/employees/${employee.id}/insights`)}
                       onMouseEnter={() =>
                         router.prefetch(`/employees/${employee.id}/insights`)
                       }
-                      onFocus={() =>
-                        router.prefetch(`/employees/${employee.id}/insights`)
-                      }
+                      onFocus={() => router.prefetch(`/employees/${employee.id}/insights`)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
@@ -264,12 +275,12 @@ export function AnimatedEmployeesTable({
                         }
                       }}
                     >
-                      <TableCell className="w-[70px] px-4 py-3 text-center text-xs tabular-nums">
+                      <div className="px-3 py-3 text-left text-xs tabular-nums border-r border-border/60">
                         {index + 1}
-                      </TableCell>
-                      <TableCell className="w-[170px] px-4 py-3 font-medium">
+                      </div>
+                      <div className="px-3 py-3 text-left font-medium border-r border-border/60">
                         <div className="flex min-w-0 items-center gap-2">
-                          <span className="text-foreground group-hover:text-primary truncate underline-offset-4 transition-colors">
+                          <span className="truncate group-hover:text-primary transition-colors">
                             {employee.name}
                           </span>
                           {isLocked ? (
@@ -278,55 +289,37 @@ export function AnimatedEmployeesTable({
                             </span>
                           ) : null}
                         </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground w-[220px] truncate px-4 py-3">
+                      </div>
+                      <div className="px-3 py-3 text-left text-muted-foreground truncate border-r border-border/60">
                         {employee.email}
-                      </TableCell>
-                      <TableCell className="w-[150px] px-4 py-3">
-                        {employee.role ? (
-                          <span>{employee.role}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="w-[140px] px-4 py-3">
-                        {employee.department ? (
-                          <span>{employee.department}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="w-[140px] px-4 py-3">
-                        {employee.team_name?.trim() ? (
-                          <span>{employee.team_name}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground w-[120px] px-4 py-3 text-center text-xs whitespace-nowrap">
+                      </div>
+                      <div className="px-3 py-3 text-left border-r border-border/60">
+                        {employee.role ? employee.role : <span className="text-muted-foreground">—</span>}
+                      </div>
+                      <div className="px-3 py-3 text-left border-r border-border/60">
+                        {employee.department ? employee.department : <span className="text-muted-foreground">—</span>}
+                      </div>
+                      <div className="px-3 py-3 text-left border-r border-border/60">
+                        {employee.team_name?.trim()
+                          ? employee.team_name
+                          : <span className="text-muted-foreground">—</span>}
+                      </div>
+                      <div className="px-3 py-3 text-left text-xs whitespace-nowrap text-muted-foreground border-r border-border/60">
                         {employee.join_date ?? "—"}
-                      </TableCell>
-                      <TableCell className="w-[110px] px-4 py-3 text-center">
+                      </div>
+                      <div className="px-3 py-3 text-left border-r border-border/60">
                         <CountBadge value={employee.achievement_count} />
-                      </TableCell>
-                      <TableCell className="w-[90px] px-4 py-3 text-center">
+                      </div>
+                      <div className="px-3 py-3 text-left border-r border-border/60">
                         <CountBadge value={employee.review_count} />
-                      </TableCell>
-                      <TableCell className="w-[90px] px-4 py-3 text-center">
+                      </div>
+                      <div className="px-3 py-3 text-left">
                         <CountBadge value={employee.notes_count} />
-                      </TableCell>
-                    </MotionTableRow>
-                    );
-                  })}
-                  {visibleEmployees.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={10} className="text-muted-foreground py-10 text-center text-sm">
-                        No employees match current search or filters.
-                      </TableCell>
-                    </TableRow>
-                  ) : null}
-                </TableBody>
-              </Table>
+                      </div>
+                    </MotionRow>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
