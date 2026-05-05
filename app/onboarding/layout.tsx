@@ -18,7 +18,8 @@ export default function OnboardingLayout({
           Performa
         </Link>
         <p className="text-muted-foreground max-w-md text-center text-sm leading-relaxed">
-          You&apos;re one step away from your workspace.
+          Name your organisation first—this becomes your Performa workspace. You&apos;ll
+          be the owner and an Admin so you can set up teams and employees next.
         </p>
         {children}
       </div>

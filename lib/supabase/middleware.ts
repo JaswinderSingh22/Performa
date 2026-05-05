@@ -41,6 +41,9 @@ export async function updateSession(req: NextRequest): Promise<NextResponse> {
   const isProtectedApp =
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/employees") ||
+    pathname.startsWith("/teams") ||
+    pathname.startsWith("/billing") ||
+    pathname.startsWith("/usage") ||
     pathname.startsWith("/settings") ||
     pathname.startsWith("/profile") ||
     pathname.startsWith("/reviews") ||

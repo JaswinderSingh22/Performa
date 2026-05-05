@@ -8,6 +8,13 @@ export const employeeNoteBodySchema = z
 
 export const employeeNoteFieldsSchema = z.object({
   body: employeeNoteBodySchema,
+  note_date: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined))
+    .refine((v) => !v || /^\d{4}-\d{2}-\d{2}$/.test(v), {
+      message: "Use YYYY-MM-DD",
+    }),
 });
 
 export type EmployeeNoteFieldsFormValues = z.input<

@@ -60,6 +60,12 @@ export async function createEmployeeNote(
     employee_id: parsed.data.employeeId,
     org_id: access.orgId,
     body: parsed.data.body.trim(),
+    ...(parsed.data.note_date
+      ? {
+          created_at: `${parsed.data.note_date}T12:00:00.000Z`,
+          updated_at: `${parsed.data.note_date}T12:00:00.000Z`,
+        }
+      : {}),
   });
 
   if (error) {
@@ -103,7 +109,12 @@ export async function updateEmployeeNote(
     .from("employee_notes")
     .update({
       body: parsed.data.body.trim(),
-      updated_at: new Date().toISOString(),
+      ...(parsed.data.note_date
+        ? {
+            created_at: `${parsed.data.note_date}T12:00:00.000Z`,
+            updated_at: `${parsed.data.note_date}T12:00:00.000Z`,
+          }
+        : { updated_at: new Date().toISOString() }),
     })
     .eq("id", parsed.data.id)
     .eq("org_id", access.orgId);

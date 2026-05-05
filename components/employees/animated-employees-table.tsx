@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import * as React from "react";
 import type { ReactElement } from "react";
+import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
-
-import { Button } from "@/components/ui/button";
 
 import {
   Table,
@@ -46,7 +45,62 @@ export function AnimatedEmployeesTable({
 }: {
   employees: EmployeeListRow[];
 }): ReactElement {
+  const router = useRouter();
   const prefersReducedMotion = useReducedMotion() === true;
+  const [departmentFilter, setDepartmentFilter] = React.useState("all");
+  const [teamFilter, setTeamFilter] = React.useState("all");
+  const [sortBy, setSortBy] = React.useState<
+    "name_asc" | "name_desc" | "join_date_desc" | "join_date_asc"
+  >("name_asc");
+
+  const departmentOptions = React.useMemo(() => {
+    return [...new Set(employees.map((e) => e.department.trim()).filter(Boolean))].sort(
+      (a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }),
+    );
+  }, [employees]);
+
+  const teamOptions = React.useMemo(() => {
+    return [
+      ...new Set(employees.map((e) => e.team_name?.trim() ?? "").filter(Boolean)),
+    ].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [employees]);
+
+  const visibleEmployees = React.useMemo(() => {
+    const filtered = employees.filter((employee) => {
+      const dept = employee.department.trim();
+      const team = employee.team_name?.trim() ?? "";
+      const deptOk = departmentFilter === "all" || dept === departmentFilter;
+      const teamOk = teamFilter === "all" || team === teamFilter;
+      return deptOk && teamOk;
+    });
+
+    const byJoin = (row: EmployeeListRow): number => {
+      if (!row.join_date) return Number.NaN;
+      const t = Date.parse(row.join_date);
+      return Number.isNaN(t) ? Number.NaN : t;
+    };
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortBy === "name_asc") {
+        return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      }
+      if (sortBy === "name_desc") {
+        return b.name.localeCompare(a.name, undefined, { sensitivity: "base" });
+      }
+      const at = byJoin(a);
+      const bt = byJoin(b);
+      const aMissing = Number.isNaN(at);
+      const bMissing = Number.isNaN(bt);
+      if (aMissing && bMissing) {
+        return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      }
+      if (aMissing) return 1;
+      if (bMissing) return -1;
+      return sortBy === "join_date_desc" ? bt - at : at - bt;
+    });
+
+    return sorted;
+  }, [employees, departmentFilter, teamFilter, sortBy]);
 
   return (
     <motion.div
@@ -55,6 +109,59 @@ export function AnimatedEmployeesTable({
       animate={prefersReducedMotion ? false : { opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: easingOut }}
     >
+      <div className="mb-4 flex flex-wrap items-end gap-3 px-1">
+        <div className="grid gap-1">
+          <label className="text-muted-foreground text-xs font-medium">Department</label>
+          <select
+            className="border-input bg-background text-foreground h-8 min-w-[170px] rounded-lg border px-2 text-sm"
+            value={departmentFilter}
+            onChange={(e) => setDepartmentFilter(e.target.value)}
+          >
+            <option value="all">All departments</option>
+            {departmentOptions.map((dept) => (
+              <option key={dept} value={dept}>
+                {dept}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="grid gap-1">
+          <label className="text-muted-foreground text-xs font-medium">Team</label>
+          <select
+            className="border-input bg-background text-foreground h-8 min-w-[170px] rounded-lg border px-2 text-sm"
+            value={teamFilter}
+            onChange={(e) => setTeamFilter(e.target.value)}
+          >
+            <option value="all">All teams</option>
+            {teamOptions.map((team) => (
+              <option key={team} value={team}>
+                {team}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="grid gap-1">
+          <label className="text-muted-foreground text-xs font-medium">Sort</label>
+          <select
+            className="border-input bg-background text-foreground h-8 min-w-[190px] rounded-lg border px-2 text-sm"
+            value={sortBy}
+            onChange={(e) =>
+              setSortBy(
+                e.target.value as
+                  | "name_asc"
+                  | "name_desc"
+                  | "join_date_desc"
+                  | "join_date_asc",
+              )
+            }
+          >
+            <option value="name_asc">Name (A to Z)</option>
+            <option value="name_desc">Name (Z to A)</option>
+            <option value="join_date_desc">Joining date (Newest first)</option>
+            <option value="join_date_asc">Joining date (Oldest first)</option>
+          </select>
+        </div>
+      </div>
       <Table className="min-w-[980px]">
         <TableHeader>
           <TableRow className="border-border/80">
@@ -69,11 +176,10 @@ export function AnimatedEmployeesTable({
             </TableHead>
             <TableHead className="text-center tabular-nums">Reviews</TableHead>
             <TableHead className="text-center tabular-nums">Notes</TableHead>
-            <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {employees.map((employee, index) => (
+          {visibleEmployees.map((employee, index) => (
             <MotionTableRow
               key={employee.id}
               {...(prefersReducedMotion
@@ -87,15 +193,21 @@ export function AnimatedEmployeesTable({
                       delay: 0.03 + index * 0.04,
                     },
                   })}
-              className="group"
+              className="group cursor-pointer"
+              role="button"
+              tabIndex={0}
+              onClick={() => router.push(`/employees/${employee.id}/insights`)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  router.push(`/employees/${employee.id}/insights`);
+                }
+              }}
             >
               <TableCell className="py-3 font-medium">
-                <Link
-                  href={`/employees/${employee.id}/insights`}
-                  className="text-foreground group-hover:text-primary underline-offset-4 transition-colors hover:underline"
-                >
+                <span className="text-foreground group-hover:text-primary underline-offset-4 transition-colors">
                   {employee.name}
-                </Link>
+                </span>
               </TableCell>
               <TableCell className="text-muted-foreground max-w-[200px] truncate py-3">
                 {employee.email}
@@ -133,34 +245,15 @@ export function AnimatedEmployeesTable({
               <TableCell className="py-3 text-center">
                 <CountBadge value={employee.notes_count} />
               </TableCell>
-              <TableCell className="py-3 text-right">
-                <div className="flex flex-wrap items-center justify-end gap-1.5">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2 text-xs"
-                    render={<Link href={`/employees/${employee.id}`} />}
-                    nativeButton={false}
-                  >
-                    Profile
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="h-8 px-2.5 text-xs"
-                    render={
-                      <Link href={`/employees/${employee.id}/generate-review`} />
-                    }
-                    nativeButton={false}
-                  >
-                    Roll-up
-                  </Button>
-                </div>
-              </TableCell>
             </MotionTableRow>
           ))}
+          {visibleEmployees.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={9} className="text-muted-foreground py-10 text-center text-sm">
+                No employees match current filters.
+              </TableCell>
+            </TableRow>
+          ) : null}
         </TableBody>
       </Table>
     </motion.div>

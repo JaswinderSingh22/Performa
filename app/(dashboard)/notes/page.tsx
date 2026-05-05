@@ -57,7 +57,7 @@ export default async function WorkspaceNotesPage(): Promise<ReactElement | null>
               return (
                 <li key={row.id}>
                   <Link
-                    href={`/employees/${row.employee_id}?tab=notes`}
+                    href={`/employees/${row.employee_id}/insights?tab=notes`}
                     className="hover:bg-muted/48 block px-4 py-4 transition-colors md:px-5"
                   >
                     <p className="text-foreground text-sm leading-relaxed">

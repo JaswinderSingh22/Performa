@@ -54,6 +54,9 @@ export type DashboardViewProps = {
   reviewCount: number;
   achievementCount: number;
   noteCount: number;
+  achievementsCoveredEmployeeCount: number;
+  notesCoveredEmployeeCount: number;
+  reviewsCoveredEmployeeCount: number;
   reviewByStatus: { draft: number; published: number; archived: number };
   avgRating: number | null;
   ratedReviewCount: number;
@@ -127,6 +130,9 @@ export function DashboardView({
   reviewCount,
   achievementCount,
   noteCount,
+  achievementsCoveredEmployeeCount,
+  notesCoveredEmployeeCount,
+  reviewsCoveredEmployeeCount,
   reviewByStatus,
   avgRating,
   ratedReviewCount,
@@ -149,43 +155,35 @@ export function DashboardView({
   const statCards = [
     {
       title: "Employees",
-      value: employeeCount,
+      value: String(employeeCount),
       hint: "Active directory",
       icon: UsersIcon,
       accent: "from-sky-500/15 to-violet-500/10",
       iconClass: "text-sky-600 dark:text-sky-400",
-      href: "/employees",
-      cta: "Open directory",
     },
     {
       title: "Reviews",
-      value: reviewCount,
-      hint: `${reviewByStatus.published} finalized · ${reviewByStatus.draft} in progress`,
+      value: `${reviewsCoveredEmployeeCount}/${employeeCount}`,
+      hint: `${reviewCount} total · ${reviewByStatus.published} finalized`,
       icon: ClipboardListIcon,
       accent: "from-violet-500/15 to-fuchsia-500/10",
       iconClass: "text-violet-600 dark:text-violet-400",
-      href: "/reviews",
-      cta: "Review hub",
     },
     {
       title: "Achievements",
-      value: achievementCount,
-      hint: "Logged wins",
+      value: `${achievementsCoveredEmployeeCount}/${employeeCount}`,
+      hint: `${achievementCount} total logged`,
       icon: TrophyIcon,
       accent: "from-amber-500/15 to-orange-500/10",
       iconClass: "text-amber-600 dark:text-amber-400",
-      href: "/achievements",
-      cta: "Browse wins",
     },
     {
       title: "Notes",
-      value: noteCount,
+      value: `${notesCoveredEmployeeCount}/${employeeCount}`,
       hint: employeeCount ? `~${notePerEmployee} / person` : "Manager notes",
       icon: MessageSquareIcon,
       accent: "from-emerald-500/15 to-teal-500/10",
       iconClass: "text-emerald-600 dark:text-emerald-400",
-      href: "/notes",
-      cta: "Open feed",
     },
   ] as const;
 
@@ -305,16 +303,6 @@ export function DashboardView({
                     <p className="text-foreground text-4xl font-semibold tracking-tight tabular-nums">
                       {card.value}
                     </p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-fit gap-0.5 rounded-lg shadow-sm"
-                      render={<Link href={card.href} />}
-                      nativeButton={false}
-                    >
-                      {card.cta}
-                      <ArrowUpRightIcon className="size-3.5 opacity-70" />
-                    </Button>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -352,7 +340,7 @@ export function DashboardView({
                     {topRated.map((row) => (
                       <li key={row.employeeId}>
                         <Link
-                          href={`/employees/${row.employeeId}?tab=reviews`}
+                          href={`/employees/${row.employeeId}/insights?tab=reviews`}
                           className="hover:bg-muted/45 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition-colors"
                         >
                           <span className="text-foreground font-medium truncate">
@@ -390,7 +378,7 @@ export function DashboardView({
                     {needsAttention.map((row) => (
                       <li key={`low-${row.employeeId}`}>
                         <Link
-                          href={`/employees/${row.employeeId}?tab=reviews`}
+                          href={`/employees/${row.employeeId}/insights?tab=reviews`}
                           className="hover:bg-muted/45 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition-colors"
                         >
                           <span className="text-foreground font-medium truncate">

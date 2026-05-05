@@ -15,14 +15,12 @@ import {
   Loader2Icon,
   PencilIcon,
   PlusIcon,
-  RocketIcon,
   Trash2Icon,
 } from "lucide-react";
 
 import {
   createReview,
   deleteReview,
-  publishReview,
   updateReview,
 } from "@/actions/reviews";
 import { Badge } from "@/components/ui/badge";
@@ -126,6 +124,7 @@ function buildDefaults(review: ReviewWithDimensions | null): ReviewFieldsFormVal
   return {
     title: review ? reviewTitle(review) : "",
     status: review?.status ?? "draft",
+    reviewDate: review?.created_at?.slice(0, 10) ?? "",
     rating:
       ratingPreview === "" ||
       ratingPreview === null ||
@@ -194,7 +193,8 @@ function ReviewFormDialog({
 
     const payload = {
       title: values.title,
-      status: values.status,
+      status: "draft" as const,
+      reviewDate: values.reviewDate,
       rating: values.rating,
       checklist: normalizeChecklistForStorage(values.checklist ?? {}),
       dimensions,
@@ -230,17 +230,13 @@ function ReviewFormDialog({
           <div className="p-6 pb-2">
             <DialogHeader className="text-left">
               <DialogTitle>
-                {isEdit ? "Edit review" : "New performance review"}
+                {isEdit ? "Edit HR review record" : "Create HR review record"}
               </DialogTitle>
               <DialogDescription>
-                Tick the predefined checklist—that becomes the{" "}
-                <span className="text-foreground font-medium">official 1–5 score</span>{" "}
-                when anything is marked (weighted across criteria). Use performance
-                areas for narrative proof. AI-assisted drafting for combining notes,
-                achievements, and prior reviews lives only under{" "}
-                <span className="text-foreground font-medium">Roll-up from period</span>—
-                type everything here yourself, or start a roll-up and edit the result
-                back in this dialog.
+                HR/admin finalization form. You can paste manager or TL input into
+                the draft field, then standardize final language and scoring before
+                publishing. AI-generated summaries stay in{" "}
+                <span className="text-foreground font-medium">Roll-ups</span>.
               </DialogDescription>
             </DialogHeader>
           </div>
@@ -251,10 +247,10 @@ function ReviewFormDialog({
               </p>
             ) : null}
             <div className="grid gap-2">
-              <Label htmlFor="rev-title">Review title</Label>
+              <Label htmlFor="rev-title">Review cycle / title</Label>
               <Input
                 id="rev-title"
-                placeholder="Mid-year · Q4 · Annual"
+                placeholder="e.g. Q2 2026 Performance Review"
                 {...form.register("title")}
               />
               {form.formState.errors.title ? (
@@ -262,6 +258,10 @@ function ReviewFormDialog({
                   {form.formState.errors.title.message}
                 </p>
               ) : null}
+            </div>
+            <div className="grid gap-2 sm:max-w-xs">
+              <Label htmlFor="rev-date">Review date</Label>
+              <Input id="rev-date" type="date" {...form.register("reviewDate")} />
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -274,15 +274,15 @@ function ReviewFormDialog({
                   form.trigger("dimensions");
                 }}
               >
-                Load template areas
+                Load HR competency template
               </Button>
             </div>
 
             <div className="border-border/80 bg-muted/15 space-y-3 rounded-xl border p-4">
               <div>
-                <Label>Performance checklist</Label>
+                <Label>HR evaluation checklist</Label>
                 <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-                  Check what was true for this review. Each item has a weight; the saved
+                  Mark evidence-backed criteria. Each item has a weight; the saved
                   score is the weighted share mapped to{" "}
                   <span className="text-foreground font-medium tabular-nums">1–5</span>
                   .
@@ -340,7 +340,7 @@ function ReviewFormDialog({
 
             <div className="grid gap-3">
               <div className="flex items-center justify-between gap-2">
-                <Label>Performance areas</Label>
+                <Label>Competency areas</Label>
                 <Button
                   type="button"
                   variant="outline"
@@ -355,17 +355,17 @@ function ReviewFormDialog({
                   }
                 >
                   <PlusIcon className="size-3.5" />
-                  Area
+                  Add area
                 </Button>
               </div>
               <p className="text-muted-foreground text-xs">
                 {checklistOfficial !== null ? (
                   <>
-                    Checklist controls the saved score (
+                    Checklist controls the saved HR score (
                     <span className="text-foreground font-semibold tabular-nums">
                       {checklistOfficial}/5
                     </span>
-                    ). Areas are for evidence and discussion—optional but recommended.
+                    ). Areas capture structured competency evidence for audit trails.
                   </>
                 ) : watchedDims && watchedDims.length > 0 ? (
                   <>
@@ -440,7 +440,7 @@ function ReviewFormDialog({
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor={`rev-dim-${idx}-analysis`}>
-                        Analysis / evidence
+                        HR notes / evidence
                       </Label>
                       <Textarea
                         id={`rev-dim-${idx}-analysis`}
@@ -469,30 +469,10 @@ function ReviewFormDialog({
               </ul>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="rev-status">Status</Label>
-                <select
-                  id="rev-status"
-                  {...form.register("status")}
-                  className={cn(
-                    "border-input bg-background placeholder:text-muted-foreground focus-visible:ring-ring/50 aria-invalid:border-destructive focus-visible:border-ring aria-invalid:focus-visible:border-destructive aria-invalid:focus-visible:ring-destructive/20 dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:focus-visible:ring-destructive/40 h-10 w-full rounded-lg border px-2.5 text-sm outline-none focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
-                  )}
-                >
-                  <option value="draft">Draft</option>
-                  <option value="published">Finalized</option>
-                  <option value="archived">Shelved</option>
-                </select>
-                {form.formState.errors.status ? (
-                  <p className="text-destructive text-xs">
-                    {form.formState.errors.status.message}
-                  </p>
-                ) : null}
-              </div>
-              <div className="grid gap-2">
+            <div className="grid gap-2">
                 {checklistOfficial !== null ? (
                   <>
-                    <Label>Official rating</Label>
+                    <Label>Official HR rating</Label>
                     <p className="text-muted-foreground py-2 text-sm tabular-nums">
                       From checklist weighted score{" "}
                       <span className="text-foreground font-semibold">
@@ -545,29 +525,27 @@ function ReviewFormDialog({
                     )}
                   />
                 )}
-              </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="rev-draft">Working draft</Label>
+              <Label htmlFor="rev-draft">Manager/TL input (working draft)</Label>
               <Textarea
                 id="rev-draft"
                 rows={7}
                 className="min-h-[116px]"
-                placeholder="Rough notes and themes before you tighten the narrative…"
+                placeholder="Paste raw manager/TL comments, bullet points, or draft narrative…"
                 {...form.register("ai_draft")}
               />
               <p className="text-muted-foreground text-xs">
-                Manager-only notes and bullet scaffolding before you tighten the
-                narrative.
+                Internal drafting area for HR consolidation before final wording.
               </p>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="rev-final">Final summary</Label>
+              <Label htmlFor="rev-final">Final HR summary</Label>
               <Textarea
                 id="rev-final"
                 rows={9}
                 className="min-h-[148px]"
-                placeholder="Formal review wording for HR or their file…"
+                placeholder="Final employee-facing review text for file/communication…"
                 {...form.register("final_review")}
               />
               {form.formState.errors.final_review ? (
@@ -576,7 +554,7 @@ function ReviewFormDialog({
                 </p>
               ) : (
                 <p className="text-muted-foreground text-xs">
-                  Required when marking as finalized (minimum 15 characters).
+                  Required before finalizing (minimum 15 characters).
                 </p>
               )}
             </div>
@@ -589,132 +567,13 @@ function ReviewFormDialog({
                   Saving…
                 </>
               ) : isEdit ? (
-                "Save review"
+                "Save HR review"
               ) : (
-                "Create review"
+                "Create HR review"
               )}
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function PublishReviewDialog({
-  row,
-  employeeId,
-  open,
-  onOpenChange,
-  onPublished,
-}: {
-  row: ReviewWithDimensions | null;
-  employeeId: string;
-  open: boolean;
-  onOpenChange: (next: boolean) => void;
-  onPublished: () => void;
-}): React.ReactElement {
-  const [busy, setBusy] = React.useState(false);
-  const finalLen = row?.final_review?.trim().length ?? 0;
-  const meetsSummary = finalLen >= 15;
-  const dimCount = row?.review_dimensions?.length ?? 0;
-
-  React.useEffect(() => {
-    if (!open) setBusy(false);
-  }, [open]);
-
-  const onPublish = async (): Promise<void> => {
-    if (!row || !meetsSummary) return;
-    setBusy(true);
-    try {
-      const result = await publishReview({ id: row.id, employeeId });
-      if (!result.ok) {
-        window.alert(result.error);
-        return;
-      }
-      onOpenChange(false);
-      onPublished();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Finalize this performance review?</DialogTitle>
-          <DialogDescription className="text-pretty leading-relaxed">
-            Finalizing locks this review as the official record for dashboards and
-            rankings. Notes and achievements stay editable elsewhere; only formal
-            reviews use this step.
-          </DialogDescription>
-        </DialogHeader>
-        {row ? (
-          <div className="space-y-4 py-2">
-            <div className="border-border bg-muted/30 space-y-2 rounded-xl border p-3 text-sm">
-              <p className="text-foreground font-medium">
-                Before you finalize · {reviewTitle(row)}
-              </p>
-              <ul className="text-muted-foreground space-y-1.5">
-                <li className="flex gap-2">
-                  <span className={meetsSummary ? "text-emerald-600" : ""}>
-                    {meetsSummary ? "✓" : "○"}
-                  </span>
-                  <span>
-                    Final summary is at least 15 characters
-                    {!meetsSummary ? (
-                      <span className="text-destructive block text-xs">
-                        Currently {finalLen}. Open edit to polish the narrative.
-                      </span>
-                    ) : null}
-                  </span>
-                </li>
-                <li className="flex gap-2">
-                  <span className={dimCount > 0 ? "text-emerald-600" : ""}>
-                    {dimCount > 0 ? "✓" : "○"}
-                  </span>
-                  <span>
-                    Performance areas documented ({dimCount} area
-                    {dimCount !== 1 ? "s" : ""}) — recommended for context alongside
-                    the checklist score.
-                  </span>
-                </li>
-              </ul>
-            </div>
-            <p className="text-muted-foreground text-xs leading-relaxed">
-              After finalizing, this review counts toward team averages and the
-              dashboard strengths / focus lists.
-            </p>
-          </div>
-        ) : null}
-        <DialogFooter className="gap-2 pt-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={busy}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            className="gap-1"
-            disabled={busy || !meetsSummary}
-            onClick={() => void onPublish()}
-          >
-            {busy ? (
-              <>
-                <Loader2Icon className="size-4 animate-spin" /> Finalizing…
-              </>
-            ) : (
-              <>
-                <RocketIcon className="size-4" aria-hidden />
-                Finalize review
-              </>
-            )}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -729,8 +588,6 @@ export function ReviewsPanel({
 }): React.ReactElement {
   const router = useRouter();
   const [editorOpen, setEditorOpen] = React.useState(false);
-  const [publishTarget, setPublishTarget] =
-    React.useState<ReviewWithDimensions | null>(null);
   const [active, setActive] = React.useState<ReviewWithDimensions | null>(null);
 
   const openCreate = (): void => {
@@ -753,7 +610,13 @@ export function ReviewsPanel({
     router.refresh();
   };
 
-  const sorted = [...reviews].sort(
+  const standalone = reviews.filter(
+    (r) =>
+      r.generation_strategy !== "raw_period" &&
+      r.generation_strategy !== "stitched_summaries",
+  );
+
+  const sorted = [...standalone].sort(
     (a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
@@ -764,29 +627,10 @@ export function ReviewsPanel({
         <div>
           <h2 className="font-heading text-sm font-semibold">Reviews</h2>
           <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-            Standalone performance reviews (checklist + areas). For a period summary
-            that pulls in{" "}
-            <span className="text-foreground font-medium">
-              notes, achievements, and prior reviews
-            </span>
-            , use{" "}
-            <span className="text-foreground font-medium">Roll-up from period</span>.
+            Standalone performance reviews only (checklist + areas).
           </p>
         </div>
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="gap-1"
-            render={
-              <Link href={`/employees/${employeeId}/generate-review`} />
-            }
-            nativeButton={false}
-          >
-            <CalendarRangeIcon className="size-3.5" aria-hidden />
-            Roll-up from period
-          </Button>
           <Button
             type="button"
             size="sm"
@@ -802,9 +646,7 @@ export function ReviewsPanel({
 
       {sorted.length === 0 ? (
         <p className="text-muted-foreground text-sm">
-          No reviews yet. Add a checklist-backed review here, or start a roll-up from
-          the employee profile to combine notes, achievements, and prior reviews for
-          a date range.
+          No standalone reviews yet. Add a checklist-backed review here.
         </p>
       ) : (
         <ScrollArea className="max-h-[460px] pr-3">
@@ -850,19 +692,6 @@ export function ReviewsPanel({
                         </div>
                       </div>
                       <div className="flex shrink-0 gap-1">
-                        {row.status === "draft" ? (
-                          <Button
-                            type="button"
-                            size="icon-sm"
-                            variant="ghost"
-                            className="hover:bg-secondary/70 text-primary"
-                            aria-label="Finalize review"
-                            title="Finalize review"
-                            onClick={() => setPublishTarget(row)}
-                          >
-                            <RocketIcon className="size-4" />
-                          </Button>
-                        ) : null}
                         <Button
                           type="button"
                           size="icon-sm"
@@ -900,17 +729,121 @@ export function ReviewsPanel({
         employeeId={employeeId}
         review={active}
       />
-      <PublishReviewDialog
-        row={publishTarget}
+    </div>
+  );
+}
+
+export function RollupsPanel({
+  employeeId,
+  reviews,
+}: {
+  employeeId: string;
+  reviews: ReviewWithDimensions[];
+}): React.ReactElement {
+  const router = useRouter();
+  const [editorOpen, setEditorOpen] = React.useState(false);
+  const [active, setActive] = React.useState<ReviewWithDimensions | null>(null);
+  const rollups = [...reviews]
+    .filter(
+      (r) =>
+        r.generation_strategy === "raw_period" ||
+        r.generation_strategy === "stitched_summaries",
+    )
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const onDelete = async (row: ReviewWithDimensions): Promise<void> => {
+    if (!window.confirm("Delete this roll-up? This cannot be undone.")) return;
+    const result = await deleteReview({ id: row.id, employeeId });
+    if (!result.ok) {
+      window.alert(result.error);
+      return;
+    }
+    router.refresh();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h2 className="font-heading text-sm font-semibold">Roll-ups</h2>
+          <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+            Period-based summaries generated from notes, achievements, and prior reviews.
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="gap-1"
+          render={<Link href={`/employees/${employeeId}/generate-review`} />}
+          nativeButton={false}
+        >
+          <CalendarRangeIcon className="size-3.5" aria-hidden />
+          New roll-up
+        </Button>
+      </div>
+      {rollups.length === 0 ? (
+        <p className="text-muted-foreground text-sm">
+          No roll-ups yet. Start a period roll-up.
+        </p>
+      ) : (
+        <ScrollArea className="max-h-[460px] pr-3">
+          <ul className="space-y-4">
+            {rollups.map((row) => (
+              <li key={row.id}>
+                <div className="border-border/70 bg-card/40 rounded-2xl border p-4 shadow-[0_1px_2px_-1px_rgba(15,23,42,0.06)]">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-heading truncate leading-tight font-medium">
+                        {reviewTitle(row)}
+                      </p>
+                      <p className="text-muted-foreground mt-1 text-xs">
+                        {row.generation_strategy === "stitched_summaries"
+                          ? "Stitched summaries"
+                          : "Raw period"}
+                        {row.period_start && row.period_end
+                          ? ` · ${row.period_start.slice(0, 10)} → ${row.period_end.slice(0, 10)}`
+                          : ""}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label="Edit roll-up"
+                        onClick={() => {
+                          setActive(row);
+                          setEditorOpen(true);
+                        }}
+                      >
+                        <PencilIcon className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label="Delete roll-up"
+                        onClick={() => void onDelete(row)}
+                      >
+                        <Trash2Icon className="text-destructive size-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-muted-foreground mt-2 line-clamp-3 text-sm leading-relaxed">
+                    {row.final_review?.trim() || row.ai_draft?.trim() || "No narrative yet."}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </ScrollArea>
+      )}
+      <ReviewFormDialog
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
         employeeId={employeeId}
-        open={publishTarget !== null}
-        onOpenChange={(next) => {
-          if (!next) setPublishTarget(null);
-        }}
-        onPublished={() => {
-          setPublishTarget(null);
-          router.refresh();
-        }}
+        review={active}
       />
     </div>
   );

@@ -24,6 +24,8 @@ import {
   type EmployeeUpdateFormValues,
 } from "@/validators/employee";
 
+type TeamOption = { id: string; name: string };
+
 function buildUpdateDefaults(employee: EmployeeRow): EmployeeUpdateFormValues {
   return {
     employeeId: employee.id,
@@ -41,8 +43,12 @@ function buildUpdateDefaults(employee: EmployeeRow): EmployeeUpdateFormValues {
 
 export function EmployeeProfileActions({
   employee,
+  teams,
+  departments,
 }: {
   employee: EmployeeRow;
+  teams: TeamOption[];
+  departments: TeamOption[];
 }): React.ReactElement {
   const router = useRouter();
   const [editOpen, setEditOpen] = React.useState(false);
@@ -156,16 +162,54 @@ export function EmployeeProfileActions({
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-emp-dept">Department</Label>
-                  <Input id="edit-emp-dept" {...form.register("department")} />
+                  <select
+                    id="edit-emp-dept"
+                    className="border-input bg-background text-foreground h-8 w-full rounded-lg border px-2.5 text-sm"
+                    {...form.register("department")}
+                  >
+                    <option value="">No department</option>
+                    {employee.department?.trim() &&
+                    !departments.some(
+                      (department) =>
+                        department.name.trim().toLowerCase() ===
+                        employee.department?.trim().toLowerCase(),
+                    ) ? (
+                      <option value={employee.department.trim()}>
+                        {employee.department.trim()} (legacy)
+                      </option>
+                    ) : null}
+                    {departments.map((department) => (
+                      <option key={department.id} value={department.name}>
+                        {department.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-emp-team">Team</Label>
-                <Input
+                <select
                   id="edit-emp-team"
-                  placeholder="Squad or team name"
+                  className="border-input bg-background text-foreground h-8 w-full rounded-lg border px-2.5 text-sm"
                   {...form.register("team_name")}
-                />
+                >
+                  <option value="">No team</option>
+                  {employee.team_name?.trim() &&
+                  !teams.some(
+                    (team) =>
+                      team.name.trim().toLowerCase() ===
+                      employee.team_name?.trim().toLowerCase(),
+                  ) ? (
+                    <option value={employee.team_name.trim()}>
+                      {employee.team_name.trim()} (legacy)
+                    </option>
+                  ) : null}
+                  {teams.map((team) => (
+                    <option key={team.id} value={team.name}>
+                      {team.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-emp-join">Join date</Label>

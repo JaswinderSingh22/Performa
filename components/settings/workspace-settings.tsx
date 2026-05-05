@@ -292,15 +292,17 @@ export function SettingsWorkspaceTipsCard(): ReactElement {
     <Card className="border-border/60 bg-muted/20 h-fit border-dashed shadow-none">
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-semibold tracking-tight">
-          About billing
+          Roles & billing
         </CardTitle>
         <CardDescription className="text-xs leading-relaxed">
-          Razorpay handles cards and mandates. Admins upgrade from Plans & billing
-          below; everyone still sees prices in ₹.
+          The person who creates the workspace is the owner and stays Admin by default.
+          Admins manage plans and billing; once teammates sign in, assign Manager or Admin
+          in Settings.
         </CardDescription>
       </CardHeader>
       <CardContent className="text-muted-foreground pt-0 text-xs leading-relaxed">
-        Use the checklist and roll-up workflows while your admin picks the best tier.
+        Billing runs through Razorpay in ₹. Use the directory and review tools while your
+        admins pick the right tier.
       </CardContent>
     </Card>
   );

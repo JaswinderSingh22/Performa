@@ -38,6 +38,7 @@ export default async function WorkspaceReviewsPage({
       "id, title, status, rating, created_at, employee_id, employees ( name )",
     )
     .eq("org_id", access.orgId)
+    .is("generation_strategy", null)
     .order("created_at", { ascending: false })
     .limit(120);
 
@@ -64,7 +65,7 @@ export default async function WorkspaceReviewsPage({
     <>
       <DashboardHeader
         title="Reviews"
-        description="Performance reviews across your workspace—from drafts through finalized summaries. Employee profiles hold notes, achievements, and roll-up reviews."
+        description="Standalone performance reviews across your workspace—from drafts through finalized summaries."
         actions={
           <Link
             href="/employees"

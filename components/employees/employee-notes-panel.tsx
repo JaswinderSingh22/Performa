@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import type { EmployeeNoteRow } from "@/types/database";
@@ -43,6 +44,7 @@ function buildDefaults(
 ): EmployeeNoteFieldsFormValues {
   return {
     body: note?.body ?? "",
+    note_date: note?.created_at?.slice(0, 10) ?? "",
   };
 }
 
@@ -112,6 +114,10 @@ function NoteFormDialog({
                 {form.formState.errors.root.message}
               </p>
             ) : null}
+            <div className="grid gap-2">
+              <Label htmlFor="note-date">Date</Label>
+              <Input id="note-date" type="date" {...form.register("note_date")} />
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="note-body">Note</Label>
               <Textarea

@@ -4,9 +4,12 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  CreditCardIcon,
+  GaugeIcon,
   LayoutDashboardIcon,
   LogOutIcon,
   Settings2Icon,
+  UsersIcon,
   UserRoundIcon,
   UsersRoundIcon,
 } from "lucide-react";
@@ -28,6 +31,9 @@ type NavItem = {
 const navOverview: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboardIcon },
   { href: "/employees", label: "Employees", Icon: UsersRoundIcon },
+  { href: "/teams", label: "Organisation", Icon: UsersIcon },
+  { href: "/billing", label: "Billing", Icon: CreditCardIcon },
+  { href: "/usage", label: "Usage", Icon: GaugeIcon },
 ];
 
 const navAccount: NavItem[] = [

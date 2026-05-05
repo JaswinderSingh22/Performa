@@ -1,5 +1,13 @@
 import Link from "next/link";
 import type { ReactElement } from "react";
+import * as React from "react";
+import {
+  CalendarRangeIcon,
+  ClipboardListIcon,
+  InfoIcon,
+  StickyNoteIcon,
+  TrophyIcon,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -11,10 +19,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { InsightsOverallRating } from "@/components/employees/insights-overall-rating";
-import { InsightsCadencePicker } from "@/components/employees/insights-cadence-picker";
 import { InsightsPerformanceChart } from "@/components/employees/insights-performance-chart";
+import { AchievementsPanel } from "@/components/employees/achievements-panel";
+import { EmployeeNotesPanel } from "@/components/employees/employee-notes-panel";
+import { ReviewsPanel, RollupsPanel } from "@/components/employees/reviews-panel";
 import {
   generatedReviewPerformanceSeries,
   missingCadenceReminders,
@@ -80,17 +91,34 @@ function formatIsoLocalMedium(iso: string): string {
   });
 }
 
+function isWithinRange(dateIso: string, fromIso: string, toIso: string): boolean {
+  return dateIso >= fromIso && dateIso <= toIso;
+}
+
 export function EmployeeInsightsView({
   employee,
   achievements,
   notes,
   reviews,
+  orgReviewCadence,
+  orgQuarterStartMonth,
+  initialTab,
 }: {
   employee: EmployeeRow;
   achievements: AchievementRow[];
   notes: EmployeeNoteRow[];
   reviews: ReviewWithDimensions[];
+  orgReviewCadence: ReviewCadence;
+  orgQuarterStartMonth: number;
+  initialTab?: string;
 }): ReactElement {
+  const tab =
+    initialTab === "achievements" ||
+    initialTab === "notes" ||
+    initialTab === "reviews" ||
+    initialTab === "rollups"
+      ? initialTab
+      : "achievements";
   const published = reviews.filter((r) => r.status === "published").length;
   const drafts = reviews.filter((r) => r.status === "draft").length;
   const withPeriod = reviews.filter((r) => r.period_start && r.period_end);
@@ -141,10 +169,11 @@ export function EmployeeInsightsView({
         : `${formatIsoLocalMedium(rollupOverall.rangeFrom)} – ${formatIsoLocalMedium(rollupOverall.rangeTo)}`;
   }
 
-  const scheduleCadence = cadenceOrDefault(employee.review_cadence);
+  const scheduleCadence = cadenceOrDefault(orgReviewCadence);
   const reminderSlots = missingCadenceReminders(
     scheduleCadence,
     employee.join_date?.slice(0, 10) ?? null,
+    orgQuarterStartMonth,
     reviews.map((r) => ({
       generation_strategy: r.generation_strategy,
       review_cadence: r.review_cadence,
@@ -154,6 +183,35 @@ export function EmployeeInsightsView({
     })),
   );
   const perfSeries = generatedReviewPerformanceSeries(reviews);
+
+  const slotEvidence = React.useMemo(() => {
+    return [...reminderSlots]
+      .map((slot) => {
+        const hasAchievement = achievements.some((a) => {
+          const anchor =
+            a.achievement_date?.slice(0, 10) || a.created_at.slice(0, 10);
+          return isWithinRange(anchor, slot.from, slot.to);
+        });
+        const hasNote = notes.some((n) => {
+          const d = n.created_at.slice(0, 10);
+          return isWithinRange(d, slot.from, slot.to);
+        });
+        const hasReview = reviews.some((r) => {
+          const from = r.period_start?.slice(0, 10);
+          const to = r.period_end?.slice(0, 10);
+          if (!from || !to) return false;
+          return !(to < slot.from || from > slot.to);
+        });
+        return {
+          slot,
+          hasAchievement,
+          hasNote,
+          hasReview,
+          hasEvidence: hasAchievement || hasNote || hasReview,
+        };
+      })
+      .sort((a, b) => b.slot.from.localeCompare(a.slot.from));
+  }, [reminderSlots, achievements, notes, reviews]);
 
   return (
     <div className="relative mx-auto max-w-5xl space-y-8">
@@ -225,47 +283,107 @@ export function EmployeeInsightsView({
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <InsightsCadencePicker
-            employeeId={employee.id}
-            value={scheduleCadence}
-          />
-          {reminderSlots.length === 0 ? (
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            Department cadence:{" "}
+            <span className="text-foreground font-medium">
+              {REVIEW_CADENCE_LABELS[orgReviewCadence]}
+            </span>
+            {orgReviewCadence === "quarterly" ? (
+              <>
+                {" "}
+                · quarter starts in{" "}
+                <span className="text-foreground font-medium">
+                  {new Date(2026, orgQuarterStartMonth - 1, 1).toLocaleString(
+                    undefined,
+                    { month: "long" },
+                  )}
+                </span>
+              </>
+            ) : null}
+          </p>
+          {slotEvidence.length === 0 ? (
             <p className="text-muted-foreground border-border/60 bg-muted/15 rounded-xl border border-dashed px-4 py-6 text-center text-sm">
               You&apos;re caught up for visible {REVIEW_CADENCE_LABELS[scheduleCadence].toLowerCase()}{" "}
               windows—nice work.
             </p>
           ) : (
-            <ul className="space-y-2">
-              {reminderSlots.slice(0, 8).map((slot) => (
-                <li
-                  key={slot.key}
-                  className="border-border/70 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/[0.12] px-4 py-3"
-                >
-                  <div>
-                    <p className="font-medium leading-snug">{slot.label}</p>
-                    <p className="text-muted-foreground text-xs tabular-nums">
-                      {slot.from} → {slot.to}
-                    </p>
-                  </div>
-                  <Link
-                    href={`/employees/${employee.id}/generate-review`}
+            <div className="max-h-[420px] overflow-y-auto rounded-xl border border-border/60 p-2">
+              <ul className="space-y-2">
+                {slotEvidence.map(({ slot, hasEvidence, hasAchievement, hasNote, hasReview }) => (
+                  <li
+                    key={slot.key}
                     className={cn(
-                      buttonVariants({ variant: "secondary", size: "sm" }),
-                      "shrink-0 rounded-lg",
+                      "border-border/70 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3",
+                      hasEvidence
+                        ? "bg-emerald-500/[0.06]"
+                        : "bg-amber-500/[0.08] border-amber-500/30",
                     )}
                   >
-                    Roll-up
-                  </Link>
-                </li>
-              ))}
-            </ul>
+                    <div>
+                      <p className="font-medium leading-snug">{slot.label}</p>
+                      <p className="text-muted-foreground text-xs tabular-nums">
+                        {slot.from} → {slot.to}
+                      </p>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        <span className="rounded-full border border-border/70 bg-background/70 px-2 py-0.5 text-[11px]">
+                          Roll-up pending
+                        </span>
+                        {!hasNote ? (
+                          <span className="rounded-full border border-amber-500/40 bg-amber-500/12 px-2 py-0.5 text-[11px] text-amber-900 dark:text-amber-200">
+                            Notes missing
+                          </span>
+                        ) : null}
+                        {!hasAchievement ? (
+                          <span className="rounded-full border border-violet-500/35 bg-violet-500/10 px-2 py-0.5 text-[11px] text-violet-800 dark:text-violet-200">
+                            Achievements missing
+                          </span>
+                        ) : null}
+                        {!hasReview ? (
+                          <span className="rounded-full border border-sky-500/35 bg-sky-500/10 px-2 py-0.5 text-[11px] text-sky-800 dark:text-sky-200">
+                            Prior reviews missing
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {!hasEvidence ? (
+                        <span
+                          className="text-muted-foreground inline-flex items-center gap-1 text-xs"
+                          title="No notes, achievements, or prior reviews exist for this roll-up window."
+                        >
+                          <InfoIcon className="size-3.5" />
+                          No context yet
+                        </span>
+                      ) : null}
+                      {hasEvidence ? (
+                        <Link
+                          href={`/employees/${employee.id}/generate-review?cadence=${scheduleCadence}&periodKey=${encodeURIComponent(slot.key)}&from=${slot.from}&to=${slot.to}&label=${encodeURIComponent(slot.label)}`}
+                          className={cn(
+                            buttonVariants({ variant: "secondary", size: "sm" }),
+                            "shrink-0 rounded-lg",
+                          )}
+                        >
+                          Roll-up
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          title="No notes, achievements, or prior reviews exist for this roll-up window."
+                          className={cn(
+                            buttonVariants({ variant: "secondary", size: "sm" }),
+                            "shrink-0 cursor-not-allowed rounded-lg opacity-55",
+                          )}
+                        >
+                          Roll-up
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
-          {reminderSlots.length > 8 ? (
-            <p className="text-muted-foreground text-center text-xs">
-              Showing 8 of {reminderSlots.length} open slots—raise cadence or clear
-              older periods first.
-            </p>
-          ) : null}
         </CardContent>
       </Card>
 
@@ -376,7 +494,7 @@ export function EmployeeInsightsView({
               <p className="text-muted-foreground text-sm">
                 No notes yet.{" "}
                 <Link
-                  href={`/employees/${employee.id}?tab=notes`}
+                  href={`/employees/${employee.id}/insights?tab=notes`}
                   className="text-primary font-medium underline-offset-4 hover:underline"
                 >
                   Add the first note
@@ -409,36 +527,38 @@ export function EmployeeInsightsView({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-border/70">
+        <Card className="border-border/70 from-card to-primary/[0.02] overflow-hidden bg-gradient-to-br">
           <CardHeader>
             <CardTitle className="text-base">Latest achievements</CardTitle>
             <CardDescription>
-              Newest entries first—great anchors for a period roll-up draft.
+              Recent wins to anchor roll-up summaries.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0">
             {recentAchievements.length === 0 ? (
               <p className="text-muted-foreground text-sm">
                 Capture wins on the profile to strengthen the next draft.
               </p>
             ) : (
-              <ul className="space-y-3">
+              <ul className="space-y-2">
                 {recentAchievements.map((a) => (
                   <li
                     key={a.id}
-                    className="border-border/70 flex gap-3 rounded-xl border px-4 py-3"
+                    className="border-border/70 bg-muted/20 hover:bg-muted/35 flex items-start gap-3 rounded-xl border px-4 py-3 transition-colors"
                   >
-                    <div className="bg-primary/10 flex size-9 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold text-primary uppercase">
+                    <div className="bg-primary/10 text-primary border-primary/20 flex size-9 shrink-0 items-center justify-center rounded-lg border text-[10px] font-bold uppercase">
                       Win
                     </div>
                     <div className="min-w-0">
                       <p className="font-medium leading-snug">{a.title}</p>
-                      <p className="text-muted-foreground mt-0.5 text-xs">
-                        {a.category}
-                        {a.achievement_date
-                          ? ` · ${a.achievement_date.slice(0, 10)}`
-                          : ""}
-                      </p>
+                      <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="rounded-full border border-border/70 px-2 py-0.5">
+                          {a.category}
+                        </span>
+                        <span className="tabular-nums">
+                          {(a.achievement_date ?? a.created_at.slice(0, 10)).slice(0, 10)}
+                        </span>
+                      </div>
                     </div>
                   </li>
                 ))}
@@ -447,15 +567,14 @@ export function EmployeeInsightsView({
           </CardContent>
         </Card>
 
-        <Card className="border-border/70">
+        <Card className="border-border/70 from-card to-violet-500/[0.03] overflow-hidden bg-gradient-to-br">
           <CardHeader>
             <CardTitle className="text-base">Review narratives</CardTitle>
             <CardDescription>
-              Excerpts from generated or manual summaries—jump in to edit or
-              publish.
+              Recent narrative snapshots from roll-ups and HR reviews.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0">
             {recentReviews.length === 0 ? (
               <p className="text-muted-foreground text-sm">
                 No reviews yet.{" "}
@@ -469,7 +588,7 @@ export function EmployeeInsightsView({
               </p>
             ) : (
               <ScrollArea className="max-h-[min(340px,50vh)] pr-3">
-                <ul className="divide-border/60 divide-y rounded-xl border border-border/70">
+                <ul className="space-y-2">
                   {recentReviews.map((r) => {
                     const slo = strategyLabel(r.generation_strategy);
                     const body =
@@ -478,9 +597,9 @@ export function EmployeeInsightsView({
                       "No narrative saved yet.";
                     return (
                       <li key={r.id}>
-                        <div className="hover:bg-muted/25 flex flex-col gap-2 px-4 py-3 transition-colors sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium leading-tight">
+                        <div className="border-border/70 bg-muted/20 hover:bg-muted/35 rounded-xl border px-4 py-3 transition-colors">
+                          <div className="min-w-0">
+                            <p className="font-medium leading-tight truncate">
                               {reviewTitle(r)}
                             </p>
                             <div className="mt-2 flex flex-wrap gap-2">
@@ -514,15 +633,6 @@ export function EmployeeInsightsView({
                               {teaser(body, 200)}
                             </p>
                           </div>
-                          <Link
-                            href={`/employees/${employee.id}?tab=reviews`}
-                            className={cn(
-                              buttonVariants({ variant: "ghost", size: "sm" }),
-                              "shrink-0 self-start",
-                            )}
-                          >
-                            Open
-                          </Link>
                         </div>
                       </li>
                     );
@@ -533,6 +643,57 @@ export function EmployeeInsightsView({
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-border/70 overflow-hidden shadow-md">
+        <Tabs defaultValue={tab} orientation="horizontal" className="gap-0">
+          <div className="bg-muted/35 border-border/60 border-b px-3 py-2 md:px-4">
+            <TabsList className="bg-background/80 h-auto w-full justify-start gap-1 rounded-2xl p-1.5 shadow-sm md:w-auto">
+              <TabsTrigger
+                value="achievements"
+                className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-xl px-3 py-2"
+              >
+                <TrophyIcon className="size-3.5" />
+                Achievements
+              </TabsTrigger>
+              <TabsTrigger
+                value="notes"
+                className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-xl px-3 py-2"
+              >
+                <StickyNoteIcon className="size-3.5" />
+                Notes
+              </TabsTrigger>
+              <TabsTrigger
+                value="reviews"
+                className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-xl px-3 py-2"
+              >
+                <ClipboardListIcon className="size-3.5" />
+                Reviews
+              </TabsTrigger>
+              <TabsTrigger
+                value="rollups"
+                className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-xl px-3 py-2"
+              >
+                <CalendarRangeIcon className="size-3.5" />
+                Roll-ups
+              </TabsTrigger>
+            </TabsList>
+          </div>
+          <div className="p-4 md:p-6">
+            <TabsContent value="achievements" keepMounted={false}>
+              <AchievementsPanel employeeId={employee.id} achievements={achievements} />
+            </TabsContent>
+            <TabsContent value="notes" keepMounted={false}>
+              <EmployeeNotesPanel employeeId={employee.id} notes={notes} />
+            </TabsContent>
+            <TabsContent value="reviews" keepMounted={false}>
+              <ReviewsPanel employeeId={employee.id} reviews={reviews} />
+            </TabsContent>
+            <TabsContent value="rollups" keepMounted={false}>
+              <RollupsPanel employeeId={employee.id} reviews={reviews} />
+            </TabsContent>
+          </div>
+        </Tabs>
+      </Card>
     </div>
   );
 }

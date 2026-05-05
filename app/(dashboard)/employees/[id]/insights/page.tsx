@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactElement } from "react";
 
+import { EmployeeProfileActions } from "@/components/employees/employee-profile-actions";
 import { EmployeeInsightsView } from "@/components/employees/employee-insights-view";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { Button } from "@/components/ui/button";
@@ -11,12 +12,17 @@ import type { EmployeeNoteRow } from "@/types/database";
 import type { EmployeeRow } from "@/types/database";
 import type { ReviewWithDimensions } from "@/types/database";
 
-type PageProps = Readonly<{ params: Promise<{ id: string }> }>;
+type PageProps = Readonly<{
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ tab?: string }>;
+}>;
 
 export default async function EmployeeInsightsPage({
   params,
+  searchParams,
 }: PageProps): Promise<ReactElement | null> {
   const { id } = await params;
+  const sp = searchParams !== undefined ? await searchParams : {};
   const access = await getOrgAccess();
   if (!access) return null;
 
@@ -33,7 +39,18 @@ export default async function EmployeeInsightsPage({
 
   const employeeRow = employee as EmployeeRow;
 
-  const [achievementsRes, reviewsRes, notesRes] = await Promise.all([
+  const [teamsRes, departmentsRes, achievementsRes, reviewsRes, notesRes] =
+    await Promise.all([
+    access.supabase
+      .from("teams")
+      .select("id, name")
+      .eq("org_id", access.orgId)
+      .order("name", { ascending: true }),
+    access.supabase
+      .from("departments")
+      .select("id, name, review_cadence, quarter_start_month")
+      .eq("org_id", access.orgId)
+      .order("name", { ascending: true }),
     access.supabase
       .from("achievements")
       .select("*")
@@ -66,7 +83,12 @@ export default async function EmployeeInsightsPage({
       .eq("employee_id", id)
       .eq("org_id", access.orgId)
       .order("created_at", { ascending: false }),
-  ]);
+    ]);
+
+  const employeeDepartment = (departmentsRes.data ?? []).find(
+    (d) =>
+      d.name.trim().toLowerCase() === (employeeRow.department?.trim().toLowerCase() ?? ""),
+  );
 
   return (
     <>
@@ -87,16 +109,6 @@ export default async function EmployeeInsightsPage({
             </Button>
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              render={<Link href={`/employees/${id}`} />}
-              nativeButton={false}
-              className="rounded-lg shadow-sm"
-            >
-              Profile & capture
-            </Button>
-            <Button
-              type="button"
               size="sm"
               render={<Link href={`/employees/${id}/generate-review`} />}
               nativeButton={false}
@@ -104,6 +116,13 @@ export default async function EmployeeInsightsPage({
             >
               Roll-up review
             </Button>
+            <EmployeeProfileActions
+              employee={employeeRow}
+              teams={(teamsRes.data ?? []) as { id: string; name: string }[]}
+              departments={
+                (departmentsRes.data ?? []) as { id: string; name: string }[]
+              }
+            />
           </div>
         }
       />
@@ -113,6 +132,16 @@ export default async function EmployeeInsightsPage({
           achievements={(achievementsRes.data ?? []) as AchievementRow[]}
           notes={(notesRes.data ?? []) as EmployeeNoteRow[]}
           reviews={(reviewsRes.data ?? []) as ReviewWithDimensions[]}
+          orgReviewCadence={
+            (employeeDepartment?.review_cadence as
+              | "monthly"
+              | "quarterly"
+              | "mid_year"
+              | "yearly"
+              | null) ?? "quarterly"
+          }
+          orgQuarterStartMonth={employeeDepartment?.quarter_start_month ?? 1}
+          initialTab={sp.tab}
         />
       </main>
     </>

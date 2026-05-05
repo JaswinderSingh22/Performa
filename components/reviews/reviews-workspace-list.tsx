@@ -74,7 +74,7 @@ export function ReviewsWorkspaceList({
           >
             <div className="hover:bg-muted/48 flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-5">
               <Link
-                href={`/employees/${row.employee_id}?tab=reviews`}
+                href={`/employees/${row.employee_id}/insights?tab=reviews`}
                 className="min-w-0 flex-1 text-left transition-colors"
               >
                 <p className="text-foreground truncate font-medium">

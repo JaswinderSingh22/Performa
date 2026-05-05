@@ -1,5 +1,4 @@
 import type { ReactElement } from "react";
-import Link from "next/link";
 
 import type {
   LeaderboardSlice,
@@ -8,7 +7,6 @@ import type {
 } from "@/components/dashboard/dashboard-view";
 import { DashboardView } from "@/components/dashboard/dashboard-view";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
-import { Button } from "@/components/ui/button";
 import { getOrgAccess } from "@/lib/org-context";
 
 type DbReviewEmbed = {
@@ -50,6 +48,9 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
     noteCountRes,
     reviewsStatusRes,
     employeesTeamsRes,
+    achievementEmployeesRes,
+    noteEmployeesRes,
+    reviewEmployeesRes,
     recentReviewsRes,
     publishedRatedRes,
   ] = await Promise.all([
@@ -74,6 +75,18 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
       .select("status, rating")
       .eq("org_id", orgId),
     access.supabase.from("employees").select("team_name").eq("org_id", orgId),
+    access.supabase
+      .from("achievements")
+      .select("employee_id")
+      .eq("org_id", orgId),
+    access.supabase
+      .from("employee_notes")
+      .select("employee_id")
+      .eq("org_id", orgId),
+    access.supabase
+      .from("reviews")
+      .select("employee_id")
+      .eq("org_id", orgId),
     access.supabase
       .from("reviews")
       .select(
@@ -194,6 +207,18 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
     reviewCount,
     achievementCount,
     noteCount,
+    achievementsCoveredEmployeeCount:
+      achievementEmployeesRes.error || !achievementEmployeesRes.data
+        ? 0
+        : new Set(achievementEmployeesRes.data.map((r) => r.employee_id)).size,
+    notesCoveredEmployeeCount:
+      noteEmployeesRes.error || !noteEmployeesRes.data
+        ? 0
+        : new Set(noteEmployeesRes.data.map((r) => r.employee_id)).size,
+    reviewsCoveredEmployeeCount:
+      reviewEmployeesRes.error || !reviewEmployeesRes.data
+        ? 0
+        : new Set(reviewEmployeesRes.data.map((r) => r.employee_id)).size,
     reviewByStatus,
     avgRating: avgRatingPublished,
     ratedReviewCount: publishedRatedReviewCount,
@@ -209,16 +234,6 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
       <DashboardHeader
         title="Dashboard"
         description="Employees, finalized reviews & scores, achievements, and notes—each behaves differently."
-        actions={
-          <Button
-            size="sm"
-            className="rounded-lg shadow-sm"
-            render={<Link href="/employees" />}
-            nativeButton={false}
-          >
-            Employees
-          </Button>
-        }
       />
       <DashboardView {...analyticsProps} />
     </>

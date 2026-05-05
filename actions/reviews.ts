@@ -140,6 +140,9 @@ export async function createReview(
       checklist: checklistStored,
       ai_draft: toNullableText(parsed.data.ai_draft),
       final_review: toNullableText(parsed.data.final_review),
+      ...(parsed.data.reviewDate
+        ? { created_at: `${parsed.data.reviewDate}T12:00:00.000Z` }
+        : {}),
       period_start: parsed.data.periodStart ?? null,
       period_end: parsed.data.periodEnd ?? null,
       source_review_ids:
@@ -226,6 +229,9 @@ export async function updateReview(
       checklist: checklistStored,
       ai_draft: toNullableText(parsed.data.ai_draft),
       final_review: toNullableText(parsed.data.final_review),
+      ...(parsed.data.reviewDate
+        ? { created_at: `${parsed.data.reviewDate}T12:00:00.000Z` }
+        : {}),
     })
     .eq("id", parsed.data.id)
     .eq("org_id", access.orgId);

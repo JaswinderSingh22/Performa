@@ -86,12 +86,8 @@ export async function createEmployee(
       name: parsed.data.name,
       email: parsed.data.email.toLowerCase(),
       role: parsed.data.role.trim() ? parsed.data.role.trim() : "",
-      department: parsed.data.department.trim()
-        ? parsed.data.department.trim()
-        : "",
-      team_name: parsed.data.team_name.trim()
-        ? parsed.data.team_name.trim()
-        : "",
+      department: "",
+      team_name: "",
       join_date: parsed.data.join_date ?? null,
     })
     .select("id")
@@ -105,6 +101,41 @@ export async function createEmployee(
       };
     }
     return { ok: false, error: error.message };
+  }
+
+  const inputTeamName = parsed.data.team_name.trim();
+  const inputDepartment = parsed.data.department.trim();
+  if (inputTeamName.length > 0) {
+    const { data: matchedTeam, error: teamErr } = await access.supabase
+      .from("teams")
+      .select("name, departments(name)")
+      .eq("org_id", access.orgId)
+      .ilike("name", inputTeamName)
+      .maybeSingle();
+    if (teamErr || !matchedTeam) {
+      return { ok: false, error: "Selected team no longer exists." };
+    }
+    const deptRel = matchedTeam.departments as
+      | { name?: string }
+      | { name?: string }[]
+      | null;
+    const teamDepartment = Array.isArray(deptRel)
+      ? (deptRel[0]?.name ?? "")
+      : (deptRel?.name ?? "");
+    await access.supabase
+      .from("employees")
+      .update({
+        team_name: matchedTeam.name.trim(),
+        department: teamDepartment.trim(),
+      })
+      .eq("id", data.id)
+      .eq("org_id", access.orgId);
+  } else if (inputDepartment.length > 0) {
+    await access.supabase
+      .from("employees")
+      .update({ department: inputDepartment, team_name: "" })
+      .eq("id", data.id)
+      .eq("org_id", access.orgId);
   }
 
   revalidateEmployeeSurfaces(data.id);
@@ -149,18 +180,37 @@ export async function updateEmployee(
     return { ok: false, error: "Employee not found in your workspace." };
   }
 
+  let nextTeamName = "";
+  let nextDepartment = parsed.data.department.trim() ? parsed.data.department.trim() : "";
+  const teamInput = parsed.data.team_name.trim();
+  if (teamInput.length > 0) {
+    const { data: matchedTeam, error: teamErr } = await access.supabase
+      .from("teams")
+      .select("name, departments(name)")
+      .eq("org_id", access.orgId)
+      .ilike("name", teamInput)
+      .maybeSingle();
+    if (teamErr || !matchedTeam) {
+      return { ok: false, error: "Selected team no longer exists." };
+    }
+    nextTeamName = matchedTeam.name.trim();
+    const deptRel = matchedTeam.departments as
+      | { name?: string }
+      | { name?: string }[]
+      | null;
+    nextDepartment = Array.isArray(deptRel)
+      ? (deptRel[0]?.name?.trim() ?? "")
+      : (deptRel?.name?.trim() ?? "");
+  }
+
   const { data, error } = await access.supabase
     .from("employees")
     .update({
       name: parsed.data.name,
       email: parsed.data.email.toLowerCase(),
       role: parsed.data.role.trim() ? parsed.data.role.trim() : "",
-      department: parsed.data.department.trim()
-        ? parsed.data.department.trim()
-        : "",
-      team_name: parsed.data.team_name.trim()
-        ? parsed.data.team_name.trim()
-        : "",
+      department: nextDepartment,
+      team_name: nextTeamName,
       join_date: parsed.data.join_date ?? null,
     })
     .eq("id", employeeId)

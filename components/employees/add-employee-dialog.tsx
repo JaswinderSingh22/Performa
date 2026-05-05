@@ -23,7 +23,15 @@ import {
   type EmployeeCreateFormValues,
 } from "@/validators/employee";
 
-export function AddEmployeeDialog(): React.ReactElement {
+type TeamOption = { id: string; name: string };
+
+export function AddEmployeeDialog({
+  teams,
+  departments,
+}: {
+  teams: TeamOption[];
+  departments: TeamOption[];
+}): React.ReactElement {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
 
@@ -101,16 +109,34 @@ export function AddEmployeeDialog(): React.ReactElement {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="emp-dept">Department</Label>
-                  <Input id="emp-dept" {...form.register("department")} />
+                  <select
+                    id="emp-dept"
+                    className="border-input bg-background text-foreground h-8 w-full rounded-lg border px-2.5 text-sm"
+                    {...form.register("department")}
+                  >
+                    <option value="">No department</option>
+                    {departments.map((department) => (
+                      <option key={department.id} value={department.name}>
+                        {department.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="emp-team">Team</Label>
-                <Input
+                <select
                   id="emp-team"
-                  placeholder="Squad or team name"
+                  className="border-input bg-background text-foreground h-8 w-full rounded-lg border px-2.5 text-sm"
                   {...form.register("team_name")}
-                />
+                >
+                  <option value="">No team</option>
+                  {teams.map((team) => (
+                    <option key={team.id} value={team.name}>
+                      {team.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="emp-join">Join date</Label>

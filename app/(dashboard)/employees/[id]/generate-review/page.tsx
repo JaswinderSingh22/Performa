@@ -4,7 +4,7 @@ import type { ReactElement } from "react";
 import { GenerateReviewFromPeriodWizard } from "@/components/employees/generate-review-from-period-wizard";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { getOrgAccess } from "@/lib/org-context";
-import type { EmployeeRow } from "@/types/database";
+import type { EmployeeRow, ReviewCadence } from "@/types/database";
 
 function isReviewStitchable(raw: {
   period_start: string | null | undefined;
@@ -22,12 +22,23 @@ function isReviewStitchable(raw: {
   return a >= 40;
 }
 
-type PageProps = Readonly<{ params: Promise<{ id: string }> }>;
+type PageProps = Readonly<{
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{
+    cadence?: string;
+    periodKey?: string;
+    from?: string;
+    to?: string;
+    label?: string;
+  }>;
+}>;
 
 export default async function EmployeeGenerateReviewPage({
   params,
+  searchParams,
 }: PageProps): Promise<ReactElement | null> {
   const { id } = await params;
+  const sp = searchParams ? await searchParams : {};
   const access = await getOrgAccess();
   if (!access) return null;
 
@@ -63,7 +74,13 @@ export default async function EmployeeGenerateReviewPage({
     }),
   );
 
-  const [achCountRes, notesCountRes, reviewsCountRes] = await Promise.all([
+  const [departmentRes, achCountRes, notesCountRes, reviewsCountRes] = await Promise.all([
+    access.supabase
+      .from("departments")
+      .select("review_cadence, quarter_start_month, name")
+      .eq("org_id", access.orgId)
+      .eq("name", employee.department ?? "")
+      .maybeSingle(),
     access.supabase
       .from("achievements")
       .select("id", { count: "exact", head: true })
@@ -87,6 +104,33 @@ export default async function EmployeeGenerateReviewPage({
     reviews: reviewsCountRes.count ?? 0,
   };
 
+  const lockedPeriod =
+    typeof sp.from === "string" &&
+    typeof sp.to === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(sp.from) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(sp.to) &&
+    sp.from <= sp.to
+      ? {
+          from: sp.from,
+          to: sp.to,
+          cadence:
+            sp.cadence === "monthly" ||
+            sp.cadence === "quarterly" ||
+            sp.cadence === "mid_year" ||
+            sp.cadence === "yearly"
+              ? sp.cadence
+              : null,
+          periodKey:
+            typeof sp.periodKey === "string" && sp.periodKey.trim().length > 0
+              ? sp.periodKey.trim()
+              : null,
+          label:
+            typeof sp.label === "string" && sp.label.trim().length > 0
+              ? sp.label.trim()
+              : null,
+        }
+      : null;
+
   return (
     <>
       <DashboardHeader
@@ -97,6 +141,16 @@ export default async function EmployeeGenerateReviewPage({
         <GenerateReviewFromPeriodWizard
           employeeId={id}
           employeeName={employee.name}
+          employeeJoinDate={employee.join_date}
+          defaultCadence={
+            ((departmentRes.data?.review_cadence as ReviewCadence | null) ?? "quarterly")
+          }
+          quarterStartMonth={
+            typeof departmentRes.data?.quarter_start_month === "number"
+              ? departmentRes.data.quarter_start_month
+              : 1
+          }
+          lockedPeriod={lockedPeriod}
           stitchableReviews={stitchableReviews}
           contextCounts={contextCounts}
         />

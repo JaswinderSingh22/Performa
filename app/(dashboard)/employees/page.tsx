@@ -7,13 +7,13 @@ import {
 } from "@/components/employees/animated-employees-table";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { getOrgAccess } from "@/lib/org-context";
-import type { EmployeeRow } from "@/types/database";
+import type { DepartmentRow, EmployeeRow, TeamRow } from "@/types/database";
 
 export default async function EmployeesPage(): Promise<ReactElement | null> {
   const access = await getOrgAccess();
   if (!access) return null;
 
-  const [empRes, achRes, revRes, noteRes] = await Promise.all([
+  const [empRes, achRes, revRes, noteRes, teamRes, departmentRes] = await Promise.all([
     access.supabase
       .from("employees")
       .select("*")
@@ -31,6 +31,16 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
       .from("employee_notes")
       .select("employee_id")
       .eq("org_id", access.orgId),
+    access.supabase
+      .from("teams")
+      .select("id, name")
+      .eq("org_id", access.orgId)
+      .order("name", { ascending: true }),
+    access.supabase
+      .from("departments")
+      .select("id, name")
+      .eq("org_id", access.orgId)
+      .order("name", { ascending: true }),
   ]);
 
   if (empRes.error) {
@@ -44,6 +54,12 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
   }
   if (noteRes.error) {
     throw new Error(noteRes.error.message);
+  }
+  if (teamRes.error) {
+    throw new Error(teamRes.error.message);
+  }
+  if (departmentRes.error) {
+    throw new Error(departmentRes.error.message);
   }
 
   const rows = (empRes.data ?? []) as EmployeeRow[];
@@ -69,12 +85,18 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
     notes_count: notesByEmployee.get(employee.id) ?? 0,
   }));
 
+  const teams = (teamRes.data ?? []) as Pick<TeamRow, "id" | "name">[];
+  const departments = (departmentRes.data ?? []) as Pick<
+    DepartmentRow,
+    "id" | "name"
+  >[];
+
   return (
     <>
       <DashboardHeader
         title="Employees"
         description="Managers you support with structured review context."
-        actions={<AddEmployeeDialog />}
+        actions={<AddEmployeeDialog teams={teams} departments={departments} />}
       />
       <main className="flex-1 overflow-x-auto p-6">
         {enriched.length === 0 ? (
@@ -83,7 +105,7 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
               No employees yet—add someone to begin tracking achievements,
               notes, and reviews.
             </p>
-            <AddEmployeeDialog />
+            <AddEmployeeDialog teams={teams} departments={departments} />
           </div>
         ) : (
           <AnimatedEmployeesTable employees={enriched} />

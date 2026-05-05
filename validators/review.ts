@@ -41,6 +41,13 @@ export const reviewFieldsSchema = z
     checklist: reviewChecklistFormSchema,
     ai_draft: z.string().max(48000),
     final_review: z.string().max(48000),
+    reviewDate: z
+      .string()
+      .optional()
+      .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined))
+      .refine((v) => !v || /^\d{4}-\d{2}-\d{2}$/.test(v), {
+        message: "Use YYYY-MM-DD",
+      }),
     periodStart: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")

@@ -85,11 +85,25 @@ const MANUAL_DIMENSION_TEMPLATE: {
 export function GenerateReviewFromPeriodWizard({
   employeeId,
   employeeName,
+  employeeJoinDate,
+  defaultCadence,
+  quarterStartMonth,
+  lockedPeriod,
   stitchableReviews,
   contextCounts,
 }: {
   employeeId: string;
   employeeName: string;
+  employeeJoinDate: string | null;
+  defaultCadence: ReviewCadence;
+  quarterStartMonth: number;
+  lockedPeriod?: {
+    cadence: ReviewCadence | null;
+    periodKey: string | null;
+    label: string | null;
+    from: string;
+    to: string;
+  } | null;
   stitchableReviews: StitchableReviewOption[];
   contextCounts: { achievements: number; notes: number; reviews: number };
 }): ReactElement {
@@ -108,18 +122,29 @@ export function GenerateReviewFromPeriodWizard({
   const [step, setStep] = React.useState<WizardStep>("setup");
   const [strategy, setStrategy] = React.useState<GenerationStrategy>("raw_period");
   const [cycleCadence, setCycleCadence] =
-    React.useState<ReviewCadence>("quarterly");
-  const [periodKey, setPeriodKey] = React.useState("");
+    React.useState<ReviewCadence>(lockedPeriod?.cadence ?? defaultCadence);
+  const [periodKey, setPeriodKey] = React.useState(lockedPeriod?.periodKey ?? "");
+  const joinDateIso = employeeJoinDate?.slice(0, 10) ?? null;
   const presetList = React.useMemo(
-    () => cadencePresets(cycleCadence),
-    [cycleCadence],
+    () => cadencePresets(cycleCadence, joinDateIso, quarterStartMonth),
+    [cycleCadence, joinDateIso, quarterStartMonth],
   );
   const [title, setTitle] = React.useState("");
-  const [dateFrom, setDateFrom] = React.useState("");
-  const [dateTo, setDateTo] = React.useState("");
+  const [dateFrom, setDateFrom] = React.useState(lockedPeriod?.from ?? "");
+  const [dateTo, setDateTo] = React.useState(lockedPeriod?.to ?? "");
   const [selectedStitchIds, setSelectedStitchIds] = React.useState<Set<string>>(
     () => new Set(),
   );
+
+  React.useEffect(() => {
+    if (!lockedPeriod) return;
+    setStrategy("raw_period");
+    if (lockedPeriod.cadence) setCycleCadence(lockedPeriod.cadence);
+    if (lockedPeriod.periodKey) setPeriodKey(lockedPeriod.periodKey);
+    setDateFrom(lockedPeriod.from);
+    setDateTo(lockedPeriod.to);
+    setSelectedStitchIds(new Set());
+  }, [lockedPeriod]);
 
   const [evidenceBusy, setEvidenceBusy] = React.useState(false);
   const [aiBusy, setAiBusy] = React.useState(false);
@@ -219,9 +244,10 @@ export function GenerateReviewFromPeriodWizard({
       cycleCadence,
       dateFrom.trim(),
       dateTo.trim(),
+      quarterStartMonth,
     );
     if (inf) setPeriodKey(inf);
-  }, [dateFrom, dateTo, cycleCadence, strategy]);
+  }, [dateFrom, dateTo, cycleCadence, strategy, quarterStartMonth]);
 
   function validateSetup(): boolean {
     setClientError(null);
@@ -253,10 +279,11 @@ export function GenerateReviewFromPeriodWizard({
         cycleCadence,
         dateFrom.trim(),
         dateTo.trim(),
+      quarterStartMonth,
       );
-      if (!inf) {
+      if (!inf && !periodKey.trim()) {
         setClientError(
-          "Start and end dates must match a full calendar month, quarter, half, or year for the selected cadence.",
+          "Pick a preset range (or a valid full cadence window) before continuing.",
         );
         return false;
       }
@@ -414,6 +441,7 @@ export function GenerateReviewFromPeriodWizard({
                   cycleCadence,
                   dateFrom.trim(),
                   dateTo.trim(),
+                  quarterStartMonth,
                 ) ?? periodKey.trim(),
             }
           : {
@@ -507,14 +535,26 @@ export function GenerateReviewFromPeriodWizard({
         <Card className="border-border/70 overflow-hidden shadow-lg">
           <CardHeader className="border-border/60 from-primary/[0.04] border-b bg-gradient-to-br to-transparent pb-6">
             <CardTitle className="font-heading text-xl tracking-tight md:text-2xl">
-              Configure the review window
+              Configure roll-up
             </CardTitle>
             <CardDescription className="max-w-xl text-[15px] leading-relaxed">
-              Set the calendar window first. Then choose{" "}
-              <span className="text-foreground font-medium">manual entry</span> (no
-              AI cost) or{" "}
-              <span className="text-foreground font-medium">AI-assisted draft</span>{" "}
-              when you have profile context.
+              {lockedPeriod ? (
+                <>
+                  Period is preselected from reminders. Choose{" "}
+                  <span className="text-foreground font-medium">manual entry</span>{" "}
+                  or{" "}
+                  <span className="text-foreground font-medium">AI-assisted draft</span>
+                  .
+                </>
+              ) : (
+                <>
+                  Set the calendar window first. Then choose{" "}
+                  <span className="text-foreground font-medium">manual entry</span> (no
+                  AI cost) or{" "}
+                  <span className="text-foreground font-medium">AI-assisted draft</span>{" "}
+                  when you have profile context.
+                </>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-8 pt-8">
@@ -608,93 +648,105 @@ export function GenerateReviewFromPeriodWizard({
               </div>
             )}
 
-            <div className="space-y-3">
-              <Label className="text-base">Review cadence</Label>
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                Monthly, quarterly, mid-year (two halves), or full-year schedules.
-                Presets keep dates aligned with reminders.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {CADENCE_SEQUENCE.map((c) => (
-                  <Button
-                    key={c}
-                    type="button"
-                    size="sm"
-                    variant={cycleCadence === c ? "default" : "outline"}
-                    className="h-9 rounded-full px-4 text-xs"
-                    onClick={() => selectCadence(c)}
-                  >
-                    {REVIEW_CADENCE_LABELS[c]}
-                  </Button>
-                ))}
+            {lockedPeriod ? (
+              <div className="border-border/70 bg-muted/[0.2] space-y-2 rounded-xl border p-4">
+                <Label className="text-base">Selected roll-up window</Label>
+                <p className="text-muted-foreground text-sm">
+                  {lockedPeriod.label ?? "Selected period"}
+                </p>
+                <p className="text-foreground text-sm tabular-nums">
+                  {lockedPeriod.from} → {lockedPeriod.to}
+                </p>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  <Label className="text-base">Roll-up cadence</Label>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    Monthly, quarterly, mid-year (two halves), or full-year schedules.
+                    Presets keep dates aligned with reminders.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {CADENCE_SEQUENCE.map((c) => (
+                      <Button
+                        key={c}
+                        type="button"
+                        size="sm"
+                        variant={cycleCadence === c ? "default" : "outline"}
+                        className="h-9 rounded-full px-4 text-xs"
+                        onClick={() => selectCadence(c)}
+                      >
+                        {REVIEW_CADENCE_LABELS[c]}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
 
-            <div className="space-y-3">
-              <Label className="text-base">Period presets</Label>
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                One tap sets the evidence window for raw mode—only notes and achievements dated inside count.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {presetList.map((p) => (
-                  <Button
-                    key={p.key}
-                    type="button"
-                    size="sm"
-                    variant={
-                      dateFrom === p.from && dateTo === p.to ? "default" : "outline"
-                    }
-                    className="h-9 rounded-full px-4 text-xs"
-                    onClick={() => applyCadencePreset(p)}
-                  >
-                    {p.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
+                <div className="space-y-3">
+                  <Label className="text-base">Roll-up period presets</Label>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    One tap sets the evidence window for raw mode—only notes and achievements dated inside count.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {presetList.map((p) => (
+                      <Button
+                        key={p.key}
+                        type="button"
+                        size="sm"
+                        variant={
+                          dateFrom === p.from && dateTo === p.to ? "default" : "outline"
+                        }
+                        className="h-9 rounded-full px-4 text-xs"
+                        onClick={() => applyCadencePreset(p)}
+                      >
+                        {p.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="cyc-from">Range start</Label>
-                <Input
-                  id="cyc-from"
-                  type="date"
-                  value={dateFrom}
-                  disabled={
-                    strategy === "stitched_summaries" &&
-                    selectedStitchIds.size > 0 &&
-                    stitchEnvelope !== null
-                  }
-                  onChange={(e) => {
-                    setStrategy("raw_period");
-                    setSelectedStitchIds(new Set());
-                    setDateFrom(e.target.value);
-                  }}
-                  className="h-11"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="cyc-to">Range end</Label>
-                <Input
-                  id="cyc-to"
-                  type="date"
-                  value={dateTo}
-                  disabled={
-                    strategy === "stitched_summaries" &&
-                    selectedStitchIds.size > 0 &&
-                    stitchEnvelope !== null
-                  }
-                  onChange={(e) => {
-                    setStrategy("raw_period");
-                    setSelectedStitchIds(new Set());
-                    setDateTo(e.target.value);
-                  }}
-                  className="h-11"
-                />
-              </div>
-            </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="cyc-from">Roll-up start</Label>
+                    <Input
+                      id="cyc-from"
+                      type="date"
+                      value={dateFrom}
+                      disabled={
+                        strategy === "stitched_summaries" &&
+                        selectedStitchIds.size > 0 &&
+                        stitchEnvelope !== null
+                      }
+                      onChange={(e) => {
+                        setStrategy("raw_period");
+                        setSelectedStitchIds(new Set());
+                        setDateFrom(e.target.value);
+                      }}
+                      className="h-11"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="cyc-to">Roll-up end</Label>
+                    <Input
+                      id="cyc-to"
+                      type="date"
+                      value={dateTo}
+                      disabled={
+                        strategy === "stitched_summaries" &&
+                        selectedStitchIds.size > 0 &&
+                        stitchEnvelope !== null
+                      }
+                      onChange={(e) => {
+                        setStrategy("raw_period");
+                        setSelectedStitchIds(new Set());
+                        setDateTo(e.target.value);
+                      }}
+                      className="h-11"
+                    />
+                  </div>
+                </div>
 
-            <div className="border-border/70 space-y-3 rounded-xl border bg-muted/[0.2] p-4">
+                <div className="border-border/70 space-y-3 rounded-xl border bg-muted/[0.2] p-4">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <Label className="text-base">Or stitch prior quarters</Label>
@@ -750,6 +802,8 @@ export function GenerateReviewFromPeriodWizard({
                 </ul>
               )}
             </div>
+              </>
+            )}
 
             <div className="flex flex-wrap gap-3 pt-2">
               <Button
@@ -952,7 +1006,7 @@ export function GenerateReviewFromPeriodWizard({
           <CardContent className="space-y-6">
             <div className="grid gap-2">
               <Label htmlFor="refine-title">
-                Review title <span className="text-destructive">*</span>
+                Roll-up title <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="refine-title"
@@ -1103,7 +1157,7 @@ export function GenerateReviewFromPeriodWizard({
                     Saving…
                   </>
                 ) : (
-                  "Save draft review"
+                  "Save draft roll-up"
                 )}
               </Button>
             </div>

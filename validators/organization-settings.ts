@@ -9,3 +9,8 @@ export const organizationRenameSchema = z.object({
 });
 
 export type OrganizationRenameInput = z.infer<typeof organizationRenameSchema>;
+
+export const organizationReviewCycleSchema = z.object({
+  reviewCadence: z.enum(["monthly", "quarterly", "mid_year", "yearly"]),
+  quarterStartMonth: z.number().int().min(1).max(12),
+});

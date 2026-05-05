@@ -8,6 +8,8 @@ export type ReviewCadence = "monthly" | "quarterly" | "mid_year" | "yearly";
 export interface OrganizationRow {
   id: string;
   name: string;
+  /** First auth user who created the workspace; always Org owner (Admin). */
+  created_by: string | null;
   plan: string;
   country_code: string;
   billing_interval: "month" | "year" | null;
@@ -15,6 +17,8 @@ export interface OrganizationRow {
   razorpay_customer_id: string | null;
   razorpay_subscription_id: string | null;
   subscription_current_end: string | null;
+  review_cadence: ReviewCadence | null;
+  quarter_start_month: number | null;
   created_at: string;
 }
 
@@ -40,6 +44,23 @@ export interface EmployeeRow {
   notes: string | null;
   /** Expected cycle generator cadence for reminder lists */
   review_cadence: ReviewCadence | null;
+  created_at: string;
+}
+
+export interface TeamRow {
+  id: string;
+  org_id: string;
+  name: string;
+  department_id: string;
+  created_at: string;
+}
+
+export interface DepartmentRow {
+  id: string;
+  org_id: string;
+  name: string;
+  review_cadence: ReviewCadence | null;
+  quarter_start_month: number | null;
   created_at: string;
 }
 

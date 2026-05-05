@@ -77,10 +77,13 @@ export function OnboardingForm({
       <Card className="border-border/60 bg-card/90 ring-primary/[0.06] supports-[backdrop-filter]:bg-card/80 w-full rounded-2xl shadow-xl ring-1 shadow-black/[0.04] backdrop-blur-xl dark:shadow-black/30">
         <CardHeader className="space-y-2 pb-2">
           <CardTitle className="text-xl font-semibold tracking-tight">
-            Create your workspace
+            Create your organisation
           </CardTitle>
           <CardDescription className="text-pretty">
-            Create your workspace and confirm your display name.
+            Your organisation is the workspace for everyone—teams and directory come
+            after this step. As the creator, you become the owner with{" "}
+            <span className="text-foreground/90 font-medium">Admin</span> access so you
+            can assign roles later in Settings.
           </CardDescription>
         </CardHeader>
         <form onSubmit={onSubmit}>
@@ -100,7 +103,7 @@ export function OnboardingForm({
                 variants={prefersReducedMotion ? undefined : staggerFieldItem}
                 className="space-y-2"
               >
-                <Label htmlFor="onboard-org">Organization name</Label>
+                <Label htmlFor="onboard-org">Organisation name</Label>
                 <Input
                   id="onboard-org"
                   name="organizationName"

@@ -42,12 +42,16 @@ export function EmployeeProfileTabs({
   achievements,
   notes,
   reviews,
+  teams,
+  departments,
   initialTab,
 }: {
   employee: EmployeeRow;
   achievements: AchievementRow[];
   notes: EmployeeNoteRow[];
   reviews: ReviewWithDimensions[];
+  teams: { id: string; name: string }[];
+  departments: { id: string; name: string }[];
   initialTab?: string;
 }): ReactElement {
   const prefersReducedMotion = useReducedMotion() === true;
@@ -148,7 +152,11 @@ export function EmployeeProfileTabs({
               >
                 Roll-up review
               </Link>
-              <EmployeeProfileActions employee={employee} />
+              <EmployeeProfileActions
+                employee={employee}
+                teams={teams}
+                departments={departments}
+              />
             </div>
           </div>
         </Card>

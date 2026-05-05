@@ -1,7 +1,12 @@
 import type { ISODateString } from "@/lib/period-range";
-import { calendarQuarterRange, compareISODate } from "@/lib/period-range";
+import { compareISODate } from "@/lib/period-range";
 
 export type ReviewCadence = "monthly" | "quarterly" | "mid_year" | "yearly";
+
+export type OrgReviewCycleConfig = {
+  reviewCadence: ReviewCadence;
+  quarterStartMonth: number;
+};
 
 export const REVIEW_CADENCE_LABELS: Record<ReviewCadence, string> = {
   monthly: "Monthly",
@@ -50,6 +55,41 @@ export function periodKeyQuarterly(year: number, q: 1 | 2 | 3 | 4): string {
   return `${year}-Q${q}`;
 }
 
+function normalizeQuarterStartMonth(value: number | null | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 1;
+  const rounded = Math.trunc(value);
+  if (rounded < 1 || rounded > 12) return 1;
+  return rounded;
+}
+
+/** Quarter range using org-configurable quarter start month (1-12). */
+export function quarterRangeFromStartMonth(
+  year: number,
+  quarter: 1 | 2 | 3 | 4,
+  quarterStartMonth: number,
+): { from: ISODateString; to: ISODateString } {
+  const startMonth = normalizeQuarterStartMonth(quarterStartMonth);
+  const monthOffset = (quarter - 1) * 3;
+  const start = new Date(year, startMonth - 1 + monthOffset, 1);
+  const end = new Date(year, startMonth - 1 + monthOffset + 3, 0);
+  return {
+    from: isoFromDate(start),
+    to: isoFromDate(end),
+  };
+}
+
+function quarterForDate(
+  date: Date,
+  quarterStartMonth: number,
+): { year: number; quarter: 1 | 2 | 3 | 4 } {
+  const startMonth = normalizeQuarterStartMonth(quarterStartMonth);
+  const shiftedMonth =
+    ((date.getMonth() + 1 - startMonth + 12) % 12) + 1;
+  const quarter = (Math.floor((shiftedMonth - 1) / 3) + 1) as 1 | 2 | 3 | 4;
+  const year = date.getMonth() + 1 >= startMonth ? date.getFullYear() : date.getFullYear() - 1;
+  return { year, quarter };
+}
+
 export function periodKeyMidYear(year: number, half: 1 | 2): string {
   return `${year}-H${half}`;
 }
@@ -70,6 +110,7 @@ export function parseMonthlyKey(key: string): { year: number; month: number } | 
 export function boundsForPeriodKey(
   cadence: ReviewCadence,
   key: string,
+  quarterStartMonth = 1,
 ): { from: ISODateString; to: ISODateString } | null {
   switch (cadence) {
     case "monthly": {
@@ -82,7 +123,7 @@ export function boundsForPeriodKey(
       if (!m) return null;
       const year = Number(m[1]);
       const q = Number(m[2]) as 1 | 2 | 3 | 4;
-      return calendarQuarterRange(year, q);
+      return quarterRangeFromStartMonth(year, q, quarterStartMonth);
     }
     case "mid_year": {
       const m = /^(\d{4})-H([12])$/.exec(key);
@@ -108,6 +149,7 @@ export function inferPeriodKeyFromBounds(
   cadence: ReviewCadence,
   from: ISODateString,
   to: ISODateString,
+  quarterStartMonth = 1,
 ): string | null {
   const y = Number(from.slice(0, 4));
   switch (cadence) {
@@ -118,7 +160,7 @@ export function inferPeriodKeyFromBounds(
     }
     case "quarterly": {
       for (const q of [1, 2, 3, 4] as const) {
-        const r = calendarQuarterRange(y, q);
+        const r = quarterRangeFromStartMonth(y, q, quarterStartMonth);
         if (r.from === from && r.to === to) return periodKeyQuarterly(y, q);
       }
       return null;
@@ -149,6 +191,8 @@ export type CadencePreset = {
 /** UI chips for the generator — recent windows only. */
 export function cadencePresets(
   cadence: ReviewCadence,
+  joinDate: ISODateString | null = null,
+  quarterStartMonth = 1,
   now: Date = new Date(),
 ): CadencePreset[] {
   const cy = now.getFullYear();
@@ -174,9 +218,14 @@ export function cadencePresets(
     }
     case "quarterly": {
       const todayIso = isoFromDate(now);
-      for (const year of [cy - 1, cy] as const) {
+      const currentQ = quarterForDate(now, quarterStartMonth);
+      for (const year of [currentQ.year - 1, currentQ.year] as const) {
         for (const q of [1, 2, 3, 4] as const) {
-          const { from, to } = calendarQuarterRange(year, q);
+          const { from, to } = quarterRangeFromStartMonth(
+            year,
+            q,
+            quarterStartMonth,
+          );
           if (compareISODate(from, todayIso) > 0) continue;
           out.push({
             key: periodKeyQuarterly(year, q),
@@ -223,8 +272,7 @@ export function cadencePresets(
     default:
       break;
   }
-
-  return out;
+  return clipSlotsFromJoinDate(out, joinDate);
 }
 
 function isoFromDate(d: Date): ISODateString {
@@ -284,6 +332,7 @@ function iterMonths(
 export function expectedReminderSlots(
   cadence: ReviewCadence,
   joinDate: ISODateString | null,
+  quarterStartMonth = 1,
   today: Date = new Date(),
 ): ReminderSlot[] {
   const todayIso = isoFromDate(today);
@@ -310,12 +359,17 @@ export function expectedReminderSlots(
     }
     case "quarterly": {
       const slots: ReminderSlot[] = [];
+      const currentQ = quarterForDate(today, quarterStartMonth);
       const startYear = joinDate
-        ? Math.min(Number(joinDate.slice(0, 4)), ty - 1)
-        : ty - 1;
-      for (let year = startYear; year <= ty; year++) {
+        ? Math.min(Number(joinDate.slice(0, 4)), currentQ.year - 1)
+        : currentQ.year - 1;
+      for (let year = startYear; year <= currentQ.year; year++) {
         for (const q of [1, 2, 3, 4] as const) {
-          const { from, to } = calendarQuarterRange(year, q);
+          const { from, to } = quarterRangeFromStartMonth(
+            year,
+            q,
+            quarterStartMonth,
+          );
           if (compareISODate(from, todayIso) > 0) continue;
           slots.push({
             key: periodKeyQuarterly(year, q),
@@ -325,7 +379,7 @@ export function expectedReminderSlots(
           });
         }
       }
-      return slots;
+      return clipSlotsFromJoinDate(slots, joinDate);
     }
     case "mid_year": {
       const slots: ReminderSlot[] = [];
@@ -344,7 +398,7 @@ export function expectedReminderSlots(
           });
         }
       }
-      return slots;
+      return clipSlotsFromJoinDate(slots, joinDate);
     }
     case "yearly": {
       const startYear = joinDate
@@ -361,17 +415,32 @@ export function expectedReminderSlots(
           to,
         });
       }
-      return slots;
+      return clipSlotsFromJoinDate(slots, joinDate);
     }
     default:
       return [];
   }
 }
 
+function clipSlotsFromJoinDate<T extends { from: ISODateString; to: ISODateString }>(
+  slots: T[],
+  joinDate: ISODateString | null,
+): T[] {
+  if (!joinDate || !/^\d{4}-\d{2}-\d{2}$/.test(joinDate)) return slots;
+  return slots
+    .filter((slot) => compareISODate(slot.to, joinDate) >= 0)
+    .map((slot) =>
+      compareISODate(slot.from, joinDate) < 0
+        ? { ...slot, from: joinDate }
+        : slot,
+    );
+}
+
 /** Whether a saved review counts as covering an expected slot. */
 export function reviewCoversCadenceKey(
   cadence: ReviewCadence,
   key: string,
+  quarterStartMonth = 1,
   row: {
     generation_strategy: string | null;
     review_cadence: string | null;
@@ -391,9 +460,14 @@ export function reviewCoversCadenceKey(
   if (!row.period_start || !row.period_end) return false;
   const from = row.period_start.slice(0, 10);
   const to = row.period_end.slice(0, 10);
-  const inferred = inferPeriodKeyFromBounds(cadence, from, to);
+  const inferred = inferPeriodKeyFromBounds(
+    cadence,
+    from,
+    to,
+    quarterStartMonth,
+  );
   if (inferred === key) return true;
-  const bounds = boundsForPeriodKey(cadence, key);
+  const bounds = boundsForPeriodKey(cadence, key, quarterStartMonth);
   return (
     bounds !== null && bounds.from === from && bounds.to === to
   );
@@ -402,6 +476,7 @@ export function reviewCoversCadenceKey(
 export function missingCadenceReminders(
   cadence: ReviewCadence,
   joinDate: ISODateString | null,
+  quarterStartMonth: number,
   reviews: readonly {
     generation_strategy: string | null;
     review_cadence: string | null;
@@ -411,10 +486,17 @@ export function missingCadenceReminders(
   }[],
   today: Date = new Date(),
 ): ReminderSlot[] {
-  const expected = expectedReminderSlots(cadence, joinDate, today);
+  const expected = expectedReminderSlots(
+    cadence,
+    joinDate,
+    quarterStartMonth,
+    today,
+  );
   return expected.filter(
     (slot) =>
-      !reviews.some((r) => reviewCoversCadenceKey(cadence, slot.key, r)),
+      !reviews.some((r) =>
+        reviewCoversCadenceKey(cadence, slot.key, quarterStartMonth, r),
+      ),
   );
 }
 
