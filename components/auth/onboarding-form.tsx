@@ -118,7 +118,7 @@ export function OnboardingForm({
                 variants={prefersReducedMotion ? undefined : staggerFieldItem}
                 className="space-y-2"
               >
-                <Label htmlFor="onboard-country">Country (manager)</Label>
+                <Label htmlFor="onboard-country">Country</Label>
                 <select
                   id="onboard-country"
                   name="countryCode"
