@@ -56,7 +56,6 @@ export type DashboardViewProps = {
   achievementsCoveredEmployeeCount: number;
   notesCoveredEmployeeCount: number;
   reviewsCoveredEmployeeCount: number;
-  reviewByStatus: { draft: number; published: number; archived: number };
   avgRating: number | null;
   ratedReviewCount: number;
   teams: TeamSlice[];
@@ -66,33 +65,12 @@ export type DashboardViewProps = {
   needsAttention: LeaderboardSlice[];
 };
 
-function statusLabel(status: ReviewStatus): string {
-  switch (status) {
-    case "published":
-      return "Finalized";
-    case "archived":
-      return "Shelved";
-    default:
-      return "Draft";
-  }
+function statusLabel(): string {
+  return "Saved";
 }
 
-function statusBadgeVariant(
-  status: ReviewStatus,
-): "default" | "secondary" | "outline" {
-  switch (status) {
-    case "published":
-      return "default";
-    case "archived":
-      return "secondary";
-    default:
-      return "outline";
-  }
-}
-
-function formatPercent(part: number, total: number): string {
-  if (total <= 0) return "0";
-  return Math.round((part / total) * 100).toString();
+function statusBadgeVariant(): "secondary" {
+  return "secondary";
 }
 
 function AnimatedBar({
@@ -132,7 +110,6 @@ export function DashboardView({
   achievementsCoveredEmployeeCount,
   notesCoveredEmployeeCount,
   reviewsCoveredEmployeeCount,
-  reviewByStatus,
   avgRating,
   ratedReviewCount,
   teams,
@@ -143,10 +120,8 @@ export function DashboardView({
 }: DashboardViewProps): ReactElement {
   const prefersReducedMotion = useReducedMotion() === true;
 
-  const finalizedRate =
-    reviewCount > 0
-      ? Math.round((reviewByStatus.published / reviewCount) * 100)
-      : 0;
+  const scoredRate =
+    reviewCount > 0 ? Math.round((ratedReviewCount / reviewCount) * 100) : 0;
 
   const notePerEmployee =
     employeeCount > 0 ? (noteCount / employeeCount).toFixed(1) : "—";
@@ -163,7 +138,7 @@ export function DashboardView({
     {
       title: "Reviews",
       value: `${reviewsCoveredEmployeeCount}/${employeeCount}`,
-      hint: `${reviewCount} total · ${reviewByStatus.published} finalized`,
+      hint: `${reviewCount} total saved`,
       icon: ClipboardListIcon,
       accent: "from-violet-500/15 to-fuchsia-500/10",
       iconClass: "text-violet-600 dark:text-violet-400",
@@ -185,11 +160,6 @@ export function DashboardView({
       iconClass: "text-emerald-600 dark:text-emerald-400",
     },
   ] as const;
-
-  const reviewTotalForBar =
-    reviewByStatus.draft +
-    reviewByStatus.published +
-    reviewByStatus.archived;
 
   return (
     <div className="relative">
@@ -229,16 +199,15 @@ export function DashboardView({
                   <span className="text-foreground font-medium">
                     Performance reviews
                   </span>{" "}
-                  stay in draft until you{" "}
-                  <strong className="text-foreground font-medium">finalize</strong>{" "}
-                  them (then they lock in the checklist-based score for reports).
+                  are saved directly with checklist and area-based scoring for
+                  reports.
                 </p>
               </div>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <Badge variant="secondary" className="gap-1 font-normal tabular-nums">
                 <SparklesIcon className="size-3.5 opacity-70" aria-hidden />
-                Avg from finalized reviews
+                Avg from scored reviews
                 {avgRating !== null ? (
                   <>
                     {": "}
@@ -253,7 +222,7 @@ export function DashboardView({
               </Badge>
               {ratedReviewCount > 0 ? (
                 <span className="text-muted-foreground self-center text-xs tabular-nums">
-                  ({ratedReviewCount} finalized reviews with scores)
+                  ({ratedReviewCount} scored reviews)
                 </span>
               ) : null}
             </div>
@@ -324,15 +293,14 @@ export function DashboardView({
               <CardHeader className="border-emerald-500/10 border-b">
                 <CardTitle>Strengths · high scores</CardTitle>
                 <CardDescription>
-                  Best average ratings from{" "}
-                  <strong className="text-foreground font-medium">finalized</strong>{" "}
-                  performance reviews—open the profile for next steps.
+                  Best average ratings from scored performance reviews—open the
+                  profile for next steps.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 pt-4">
                 {topRated.length === 0 ? (
                   <p className="text-muted-foreground text-sm leading-relaxed">
-                    Once someone has a finalized scored review, they&apos;ll rank here.
+                    Once someone has a scored review, they&apos;ll rank here.
                   </p>
                 ) : (
                   <ul className="space-y-2">
@@ -363,14 +331,14 @@ export function DashboardView({
               <CardHeader className="border-amber-500/14 border-b">
                 <CardTitle>Focus · low averages</CardTitle>
                 <CardDescription>
-                  People with the lowest finalized-review averages—pair with coaching,
+                  People with the lowest scored-review averages—pair with coaching,
                   training, or another formal review.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 pt-4">
                 {needsAttention.length === 0 ? (
                   <p className="text-muted-foreground text-sm leading-relaxed">
-                    Needs more finalized review data before we can spotlight gaps.
+                    Needs more scored review data before we can spotlight gaps.
                   </p>
                 ) : (
                   <ul className="space-y-2">
@@ -413,10 +381,10 @@ export function DashboardView({
           >
             <Card className="border-border/70 h-full shadow-md">
               <CardHeader className="border-border/60 border-b">
-                <CardTitle>Performance reviews (only)</CardTitle>
+                <CardTitle>Review records</CardTitle>
                 <CardDescription>
-                  Draft vs finalized lifecycle applies here—not to notes or achievements.
-                  Finalizing makes the documented score eligible for dashboards.
+                  Saved review records for this workspace, plus score coverage from
+                  checklist and dimension ratings.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 pt-4">
@@ -424,27 +392,18 @@ export function DashboardView({
                   <div className="flex items-center gap-2">
                     <span className="bg-muted-foreground/70 size-2 rounded-full" />
                     <span className="text-muted-foreground">
-                      Draft
+                      Saved reviews
                       <strong className="text-foreground ml-1 tabular-nums font-semibold">
-                        {reviewByStatus.draft}
+                        {reviewCount}
                       </strong>
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="bg-primary size-2 rounded-full" />
                     <span className="text-muted-foreground">
-                      Finalized
+                      With scores
                       <strong className="text-foreground ml-1 tabular-nums font-semibold">
-                        {reviewByStatus.published}
-                      </strong>
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="bg-violet-500 size-2 rounded-full" />
-                    <span className="text-muted-foreground">
-                      Shelved
-                      <strong className="text-foreground ml-1 tabular-nums font-semibold">
-                        {reviewByStatus.archived}
+                        {ratedReviewCount}
                       </strong>
                     </span>
                   </div>
@@ -453,66 +412,30 @@ export function DashboardView({
                 <div className="space-y-4">
                   <div>
                     <div className="text-muted-foreground mb-2 flex justify-between text-xs">
-                      <span>Draft share</span>
+                      <span>Scored review share</span>
                       <span className="tabular-nums font-medium">
-                        {formatPercent(reviewByStatus.draft, reviewTotalForBar)}%
+                        {scoredRate}%
                       </span>
                     </div>
                     <AnimatedBar
-                      value={reviewByStatus.draft}
-                      total={reviewTotalForBar || 1}
-                      className="bg-muted-foreground/45"
-                      delay={0}
-                    />
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground mb-2 flex justify-between text-xs">
-                      <span>Finalized share</span>
-                      <span className="tabular-nums font-medium text-primary">
-                        {formatPercent(
-                          reviewByStatus.published,
-                          reviewTotalForBar,
-                        )}
-                        %
-                      </span>
-                    </div>
-                    <AnimatedBar
-                      value={reviewByStatus.published}
-                      total={reviewTotalForBar || 1}
+                      value={ratedReviewCount}
+                      total={reviewCount || 1}
                       className="bg-primary"
-                      delay={0.08}
-                    />
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground mb-2 flex justify-between text-xs">
-                      <span>Shelved share</span>
-                      <span className="tabular-nums font-medium">
-                        {formatPercent(
-                          reviewByStatus.archived,
-                          reviewTotalForBar,
-                        )}
-                        %
-                      </span>
-                    </div>
-                    <AnimatedBar
-                      value={reviewByStatus.archived}
-                      total={reviewTotalForBar || 1}
-                      className="bg-violet-500"
-                      delay={0.16}
+                      delay={0}
                     />
                   </div>
                 </div>
 
                 <div className="bg-muted/40 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm">
                   <span className="text-muted-foreground">
-                    Completion spotlight · reviews only
+                    Coverage spotlight · reviews only
                   </span>
                   <span className="font-heading font-semibold tabular-nums">
                     <span className="text-primary text-2xl">
-                      {finalizedRate}
+                      {scoredRate}
                     </span>
                     <span className="text-muted-foreground text-base font-normal">
-                      % finalized
+                      % scored
                     </span>
                   </span>
                 </div>
@@ -640,10 +563,10 @@ export function DashboardView({
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge
-                            variant={statusBadgeVariant(row.status)}
+                            variant={statusBadgeVariant()}
                             className="font-normal"
                           >
-                            {statusLabel(row.status)}
+                            {statusLabel()}
                           </Badge>
                           {typeof row.rating === "number" ? (
                             <span className="text-muted-foreground text-xs tabular-nums">

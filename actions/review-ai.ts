@@ -184,7 +184,7 @@ export async function assistReviewFromPeriod(
         return {
           ok: false,
           error:
-            "Each quarterly pick needs either a finalized summary (15+ characters) or a substantive draft (40+ characters).",
+            "Each quarterly pick needs either a saved summary (15+ characters) or a substantive draft (40+ characters).",
         };
       }
     }

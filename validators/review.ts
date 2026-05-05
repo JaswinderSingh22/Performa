@@ -3,7 +3,7 @@ import { z } from "zod";
 import { boundsForPeriodKey } from "@/lib/review-cadence";
 import { PERFORMANCE_CHECKLIST } from "@/lib/review-checklist";
 
-export const reviewStatusSchema = z.enum(["draft", "published", "archived"]);
+export const reviewStatusSchema = z.literal("draft");
 
 const checklistZodShape = Object.fromEntries(
   PERFORMANCE_CHECKLIST.map((r) => [r.slug, z.boolean()]),
@@ -65,15 +65,6 @@ export const reviewFieldsSchema = z
       .optional(),
     periodKey: z.string().trim().max(48).optional(),
   })
-  .refine(
-    (data) =>
-      data.status !== "published" || data.final_review.trim().length >= 15,
-    {
-      message:
-        "Finalizing requires at least 15 characters of final summary.",
-      path: ["final_review"],
-    },
-  )
   .superRefine((data, ctx) => {
     const strat = data.generationStrategy;
     const ps = data.periodStart;
@@ -177,12 +168,6 @@ export const reviewUpdateSchema = reviewFieldsSchema.extend({
 });
 
 export const reviewDeleteSchema = z.object({
-  id: z.uuid(),
-  employeeId: z.uuid(),
-});
-
-/** Promote a draft to published with server-side checks (final summary length, etc.). */
-export const reviewPublishSchema = z.object({
   id: z.uuid(),
   employeeId: z.uuid(),
 });

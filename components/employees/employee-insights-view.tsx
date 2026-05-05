@@ -1,3 +1,4 @@
+'use client';
 import Link from "next/link";
 import type { ReactElement } from "react";
 import * as React from "react";
@@ -95,6 +96,17 @@ function isWithinRange(dateIso: string, fromIso: string, toIso: string): boolean
   return dateIso >= fromIso && dateIso <= toIso;
 }
 
+type OverallWindow = "all" | "month" | "quarter" | "mid_year" | "year";
+
+function cutoffIsoForWindow(window: Exclude<OverallWindow, "all">): string {
+  const d = new Date();
+  if (window === "month") d.setMonth(d.getMonth() - 1);
+  if (window === "quarter") d.setMonth(d.getMonth() - 3);
+  if (window === "mid_year") d.setMonth(d.getMonth() - 6);
+  if (window === "year") d.setFullYear(d.getFullYear() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 export function EmployeeInsightsView({
   employee,
   achievements,
@@ -119,8 +131,13 @@ export function EmployeeInsightsView({
     initialTab === "rollups"
       ? initialTab
       : "achievements";
-  const published = reviews.filter((r) => r.status === "published").length;
-  const drafts = reviews.filter((r) => r.status === "draft").length;
+  const [overallWindow, setOverallWindow] = React.useState<OverallWindow>("all");
+  const standaloneReviews = reviews.filter(
+    (r) =>
+      r.generation_strategy !== "raw_period" &&
+      r.generation_strategy !== "stitched_summaries",
+  );
+  const reviewSaved = standaloneReviews.length;
   const withPeriod = reviews.filter((r) => r.period_start && r.period_end);
   const dimAvg =
     reviews.length > 0
@@ -149,24 +166,61 @@ export function EmployeeInsightsView({
   );
   const recentReviews = sortedReviews.slice(0, 6);
 
-  const rollupOverall = rollUpOverallScoreSummary(reviews);
-  const overall10 = rollupOverall.avg10;
-
-  let overallSubtitle = "";
+  const rollupSeries = generatedReviewPerformanceSeries(reviews);
+  const scoredSeries = rollupSeries.filter(
+    (p): p is (typeof rollupSeries)[number] & { score10: number } => p.score10 !== null,
+  );
+  const filteredScoredSeries = React.useMemo(() => {
+    if (overallWindow === "all") return scoredSeries;
+    const cutoff = cutoffIsoForWindow(overallWindow);
+    return scoredSeries.filter((p) => p.periodStart >= cutoff);
+  }, [overallWindow, scoredSeries]);
+  const overall10 =
+    filteredScoredSeries.length === 0
+      ? null
+      : Math.round(
+          (filteredScoredSeries.reduce((acc, p) => acc + p.score10, 0) /
+            filteredScoredSeries.length) *
+            10,
+        ) / 10;
+  const windowLabels: Record<OverallWindow, string> = {
+    all: "Overall average",
+    month: "Last month",
+    quarter: "Last quarter",
+    mid_year: "Last mid-year",
+    year: "Last year",
+  };
+  const overallSummary = rollUpOverallScoreSummary(reviews);
+  let overallSubtitle = windowLabels[overallWindow];
   let overallDateSubtitle: string | null = null;
-  if (
-    rollupOverall.periodsWithScores > 0 &&
-    rollupOverall.rangeFrom &&
-    rollupOverall.rangeTo
+  if (filteredScoredSeries.length > 0) {
+    const sorted = [...filteredScoredSeries].sort((a, b) =>
+      a.sortKey.localeCompare(b.sortKey),
+    );
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+    overallSubtitle =
+      filteredScoredSeries.length === 1
+        ? `${windowLabels[overallWindow]} · 1 period`
+        : `${windowLabels[overallWindow]} · ${filteredScoredSeries.length} periods`;
+    overallDateSubtitle =
+      first.sortKey === last.sortKey
+        ? formatIsoLocalMedium(first.sortKey)
+        : `${formatIsoLocalMedium(first.sortKey)} – ${formatIsoLocalMedium(last.sortKey)}`;
+  } else if (
+    overallWindow === "all" &&
+    overallSummary.periodsWithScores > 0 &&
+    overallSummary.rangeFrom &&
+    overallSummary.rangeTo
   ) {
     overallSubtitle =
-      rollupOverall.periodsWithScores === 1
-        ? "Based on 1 period"
-        : `Avg. across ${rollupOverall.periodsWithScores} periods`;
+      overallSummary.periodsWithScores === 1
+        ? "Overall average · 1 period"
+        : `Overall average · ${overallSummary.periodsWithScores} periods`;
     overallDateSubtitle =
-      rollupOverall.rangeFrom === rollupOverall.rangeTo
-        ? formatIsoLocalMedium(rollupOverall.rangeFrom)
-        : `${formatIsoLocalMedium(rollupOverall.rangeFrom)} – ${formatIsoLocalMedium(rollupOverall.rangeTo)}`;
+      overallSummary.rangeFrom === overallSummary.rangeTo
+        ? formatIsoLocalMedium(overallSummary.rangeFrom)
+        : `${formatIsoLocalMedium(overallSummary.rangeFrom)} – ${formatIsoLocalMedium(overallSummary.rangeTo)}`;
   }
 
   const scheduleCadence = cadenceOrDefault(orgReviewCadence);
@@ -182,7 +236,11 @@ export function EmployeeInsightsView({
       period_end: r.period_end,
     })),
   );
-  const perfSeries = generatedReviewPerformanceSeries(reviews);
+  const perfSeries = React.useMemo(() => {
+    if (overallWindow === "all") return rollupSeries;
+    const cutoff = cutoffIsoForWindow(overallWindow);
+    return rollupSeries.filter((p) => p.periodStart >= cutoff);
+  }, [overallWindow, rollupSeries]);
 
   const slotEvidence = React.useMemo(() => {
     return [...reminderSlots]
@@ -252,8 +310,38 @@ export function EmployeeInsightsView({
             scoreOutOf10={overall10}
             reviewLabel={overallSubtitle}
             reviewDateLabel={overallDateSubtitle}
-            className="w-full shrink-0 lg:w-auto lg:self-center"
+            className="shrink-0 self-start lg:self-center"
           />
+        </div>
+        <div className="mt-5 space-y-2">
+          <div className="bg-muted/35 inline-flex flex-wrap rounded-xl border border-border/60 p-1">
+            {(
+              [
+                ["all", "Overall"],
+                ["month", "Last month"],
+                ["quarter", "Last quarter"],
+                ["mid_year", "Last mid-year"],
+                ["year", "Last year"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setOverallWindow(id)}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
+                  overallWindow === id
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-muted-foreground text-xs">
+            Selection applies to both overall score and performance trend.
+          </p>
         </div>
       </Card>
 
@@ -261,8 +349,7 @@ export function EmployeeInsightsView({
         <CardHeader>
           <CardTitle className="text-base">Performance trend</CardTitle>
           <CardDescription>
-            Overall score (0–10) from each roll-up review with ratings, newest on the
-            right.
+            Overall score (0–10) for the selected window, newest on the right.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -421,30 +508,30 @@ export function EmployeeInsightsView({
         <Card className="border-border/70 overflow-hidden shadow-md">
           <CardHeader className="pb-2">
             <CardTitle className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-              Review drafts
+              Reviews saved
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="font-heading text-primary text-3xl font-semibold tabular-nums tracking-tight">
-              {drafts}
+              {reviewSaved}
             </p>
             <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
-              Drafts awaiting polish or finalize.
+              HR/admin review records saved for this employee.
             </p>
           </CardContent>
         </Card>
         <Card className="border-border/70 overflow-hidden shadow-md">
           <CardHeader className="pb-2">
             <CardTitle className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-              Finalized
+              Period-linked
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="font-heading text-emerald-600 text-3xl font-semibold tabular-nums tracking-tight dark:text-emerald-400">
-              {published}
+              {withPeriod.length}
             </p>
             <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
-              Published reviews you can stitch into longer roll-ups.
+              Reviews with explicit date windows for roll-up cadence.
             </p>
           </CardContent>
         </Card>
@@ -540,7 +627,7 @@ export function EmployeeInsightsView({
                 Capture wins on the profile to strengthen the next draft.
               </p>
             ) : (
-              <ScrollArea className="max-h-[320px] pr-2">
+              <div className="h-[320px] overflow-y-auto pr-2">
                 <ul className="space-y-2">
                   {recentAchievements.map((a) => (
                     <li
@@ -564,7 +651,7 @@ export function EmployeeInsightsView({
                     </li>
                   ))}
                 </ul>
-              </ScrollArea>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -589,7 +676,7 @@ export function EmployeeInsightsView({
                 after you capture context.
               </p>
             ) : (
-              <ScrollArea className="max-h-[320px] pr-2">
+              <div className="h-[320px] overflow-y-auto pr-2">
                 <ul className="space-y-2">
                   {recentReviews.map((r) => {
                     const slo = strategyLabel(r.generation_strategy);
@@ -606,11 +693,7 @@ export function EmployeeInsightsView({
                             </p>
                             <div className="mt-2 flex flex-wrap gap-2">
                               <Badge variant="outline" className="font-normal capitalize">
-                                {r.status === "published"
-                                  ? "Finalized"
-                                  : r.status === "archived"
-                                    ? "Shelved"
-                                    : "Draft"}
+                                Saved
                               </Badge>
                               {slo ? (
                                 <Badge
@@ -640,7 +723,7 @@ export function EmployeeInsightsView({
                     );
                   })}
                 </ul>
-              </ScrollArea>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -681,17 +764,25 @@ export function EmployeeInsightsView({
             </TabsList>
           </div>
           <div className="p-4 md:p-6">
-            <TabsContent value="achievements" keepMounted={false}>
+            <TabsContent value="achievements" keepMounted={false} className="m-0">
+              <div className="max-h-[560px] overflow-y-auto pr-1">
               <AchievementsPanel employeeId={employee.id} achievements={achievements} />
+              </div>
             </TabsContent>
-            <TabsContent value="notes" keepMounted={false}>
+            <TabsContent value="notes" keepMounted={false} className="m-0">
+              <div className="max-h-[560px] overflow-y-auto pr-1">
               <EmployeeNotesPanel employeeId={employee.id} notes={notes} />
+              </div>
             </TabsContent>
-            <TabsContent value="reviews" keepMounted={false}>
+            <TabsContent value="reviews" keepMounted={false} className="m-0">
+              <div className="max-h-[560px] overflow-y-auto pr-1">
               <ReviewsPanel employeeId={employee.id} reviews={reviews} />
+              </div>
             </TabsContent>
-            <TabsContent value="rollups" keepMounted={false}>
+            <TabsContent value="rollups" keepMounted={false} className="m-0">
+              <div className="max-h-[560px] overflow-y-auto pr-1">
               <RollupsPanel employeeId={employee.id} reviews={reviews} />
+              </div>
             </TabsContent>
           </div>
         </Tabs>

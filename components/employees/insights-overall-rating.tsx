@@ -64,7 +64,7 @@ export function InsightsOverallRating({
   return (
     <motion.div
       className={cn(
-        "border-border/60 from-primary/[0.07] relative flex flex-col items-center justify-center rounded-2xl border bg-gradient-to-br to-transparent px-6 py-5 shadow-inner md:min-w-[200px]",
+        "border-border/60 from-primary/[0.07] relative flex h-[174px] w-[240px] flex-col items-center justify-center rounded-2xl border bg-gradient-to-br to-transparent px-6 py-5 shadow-inner",
         className,
       )}
       initial={reduced ? false : { opacity: 0, scale: 0.94, y: 8 }}
@@ -113,9 +113,9 @@ export function InsightsOverallRating({
           />
         </svg>
         <div className="absolute flex flex-col items-center justify-center text-center">
-          <span className="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">
+          {/* <span className="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">
             Overall
-          </span>
+          </span> */}
           <motion.span
             className="font-heading text-foreground text-4xl font-bold tabular-nums tracking-tight"
             initial={reduced ? false : { opacity: 0, y: 6 }}
@@ -129,9 +129,9 @@ export function InsightsOverallRating({
           </span>
         </div>
       </motion.div>
-      <p className="text-muted-foreground relative max-w-[14rem] text-center text-[11px] leading-snug">
+      <p className="text-muted-foreground relative min-h-[32px] max-w-[14rem] text-center text-[11px] leading-snug">
         {scoreOutOf10 === null ? (
-          "Add dimension or overall ratings to roll-up reviews to see your average here."
+          "Add roll-up scores to see your average in this window."
         ) : (
           <>
             <span className="text-foreground font-medium">{reviewLabel}</span>

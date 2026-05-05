@@ -37,7 +37,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import type { ReviewStatus, ReviewWithDimensions } from "@/types/database";
+import type { ReviewWithDimensions } from "@/types/database";
 import {
   reviewFieldsSchema,
   type ReviewFieldsFormValues,
@@ -66,20 +66,6 @@ const DEFAULT_DIMENSION_ROWS: Pick<
 function reviewTitle(row: ReviewWithDimensions): string {
   const t = row.title?.trim();
   return t && t.length > 0 ? t : "Performance review";
-}
-
-function statusBadge(status: ReviewStatus): {
-  variant: "default" | "secondary" | "outline";
-  label: string;
-} {
-  switch (status) {
-    case "published":
-      return { variant: "default", label: "Finalized" };
-    case "archived":
-      return { variant: "secondary", label: "Shelved" };
-    default:
-      return { variant: "outline", label: "Draft" };
-  }
 }
 
 function deriveOverall(dimensions: { rating: number }[]): number | null {
@@ -123,7 +109,7 @@ function buildDefaults(review: ReviewWithDimensions | null): ReviewFieldsFormVal
 
   return {
     title: review ? reviewTitle(review) : "",
-    status: review?.status ?? "draft",
+    status: "draft",
     reviewDate: review?.created_at?.slice(0, 10) ?? "",
     rating:
       ratingPreview === "" ||
@@ -235,7 +221,7 @@ function ReviewFormDialog({
               <DialogDescription>
                 HR/admin finalization form. You can paste manager or TL input into
                 the draft field, then standardize final language and scoring before
-                publishing. AI-generated summaries stay in{" "}
+                saving. AI-generated summaries stay in{" "}
                 <span className="text-foreground font-medium">Roll-ups</span>.
               </DialogDescription>
             </DialogHeader>
@@ -554,7 +540,7 @@ function ReviewFormDialog({
                 </p>
               ) : (
                 <p className="text-muted-foreground text-xs">
-                  Required before finalizing (minimum 15 characters).
+                  Include a clear final summary before saving.
                 </p>
               )}
             </div>
@@ -652,7 +638,6 @@ export function ReviewsPanel({
         <ScrollArea className="max-h-[460px] pr-3">
           <ul className="space-y-4">
             {sorted.map((row) => {
-              const sb = statusBadge(row.status);
               const dimCount = row.review_dimensions?.length ?? 0;
               const preview =
                 row.final_review?.trim() ??
@@ -667,8 +652,8 @@ export function ReviewsPanel({
                           {reviewTitle(row)}
                         </p>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <Badge variant={sb.variant} className="font-normal">
-                            {sb.label}
+                          <Badge variant="secondary" className="font-normal">
+                            Saved
                           </Badge>
                           {dimCount > 0 ? (
                             <span className="text-muted-foreground text-xs tabular-nums">

@@ -2,6 +2,7 @@
 
 import type { ReactElement } from "react";
 import * as React from "react";
+import { motion, useReducedMotion } from "motion/react";
 import {
   Area,
   CartesianGrid,
@@ -23,10 +24,11 @@ function shortAxisLabel(sortKey: string): string {
   if (parts.length !== 3) return sortKey.slice(0, 10);
   const y = Number(parts[0]);
   const m = Number(parts[1]);
+  const d = Number(parts[2]);
   if (!Number.isFinite(y) || !Number.isFinite(m)) return day;
-  return new Date(y, m - 1, 1).toLocaleDateString(undefined, {
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    day: "2-digit",
     month: "short",
-    year: "2-digit",
   });
 }
 
@@ -55,7 +57,7 @@ function PerformanceTooltip({
       </p>
       <p className="text-foreground text-sm font-medium leading-snug">{row.name}</p>
       <p className="text-primary mt-2 font-heading text-xl font-bold tabular-nums tracking-tight">
-        {score}
+        {score} pts
         <span className="text-muted-foreground text-sm font-semibold"> / 10</span>
       </p>
     </div>
@@ -74,8 +76,8 @@ export function InsightsPerformanceChart({
 }: {
   series: ScorePoint[];
 }): ReactElement {
+  const reduce = useReducedMotion() === true;
   const gradId = React.useId().replace(/:/g, "");
-
   const chartData: ChartRow[] = series
     .filter((p): p is ScorePoint & { score10: number } => p.score10 !== null)
     .map((p) => ({
@@ -105,14 +107,19 @@ export function InsightsPerformanceChart({
   }
 
   return (
-    <div className="w-full min-w-0 space-y-3">
+    <motion.div
+      className="w-full min-w-0 space-y-3"
+      initial={reduce ? false : { opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: reduce ? 0 : 0.4 }}
+    >
       {avgScore !== null ? (
         <div className="text-muted-foreground flex flex-wrap items-baseline justify-end gap-x-3 gap-y-1 text-xs">
           <span>
             <span className="text-foreground font-semibold tabular-nums">
               {avgScore}
             </span>
-            <span className="tabular-nums"> / 10 avg</span>
+            <span className="tabular-nums"> pts avg</span>
           </span>
           <span className="text-border hidden sm:inline">·</span>
           <span className="tabular-nums">{chartData.length} data points</span>
@@ -133,24 +140,11 @@ export function InsightsPerformanceChart({
           >
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                <stop
-                  offset="0%"
-                  stopColor="hsl(var(--primary))"
-                  stopOpacity={0.22}
-                />
-                <stop
-                  offset="75%"
-                  stopColor="hsl(var(--primary))"
-                  stopOpacity={0.04}
-                />
-                <stop
-                  offset="100%"
-                  stopColor="hsl(var(--primary))"
-                  stopOpacity={0}
-                />
+                <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.22} />
+                <stop offset="70%" stopColor="hsl(var(--primary))" stopOpacity={0.08} />
+                <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
               </linearGradient>
             </defs>
-
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
 
             <XAxis
@@ -168,8 +162,9 @@ export function InsightsPerformanceChart({
               tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
               tickLine={false}
               axisLine={false}
-              ticks={[0, 2.5, 5, 7.5, 10]}
+              ticks={[0, 2, 4, 6, 8, 10]}
               tickMargin={6}
+              tickFormatter={(value) => `${value}`}
             />
 
             <ReferenceLine
@@ -188,39 +183,38 @@ export function InsightsPerformanceChart({
               }}
               content={<PerformanceTooltip />}
             />
-
             <Area
               type="monotone"
               dataKey="score"
               stroke="none"
               fill={`url(#${gradId})`}
-              isAnimationActive
-              animationDuration={600}
+              isAnimationActive={!reduce}
+              animationDuration={650}
             />
 
             <Line
               type="monotone"
               dataKey="score"
               stroke="hsl(var(--primary))"
-              strokeWidth={2.5}
+              strokeWidth={3}
               dot={{
-                r: 5,
+                r: 4,
                 fill: "hsl(var(--primary))",
                 stroke: "hsl(var(--background))",
                 strokeWidth: 2,
               }}
               activeDot={{
-                r: 7,
+                r: 6,
                 fill: "hsl(var(--primary))",
                 stroke: "hsl(var(--background))",
                 strokeWidth: 2,
               }}
-              isAnimationActive
-              animationDuration={700}
+              isAnimationActive={!reduce}
+              animationDuration={900}
             />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </motion.div>
   );
 }

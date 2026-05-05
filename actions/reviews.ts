@@ -7,7 +7,6 @@ import { getOrgAccess } from "@/lib/org-context";
 import {
   reviewCreateSchema,
   reviewDeleteSchema,
-  reviewPublishSchema,
   reviewUpdateSchema,
 } from "@/validators/review";
 import {
@@ -135,7 +134,7 @@ export async function createReview(
       employee_id: parsed.data.employeeId,
       org_id: access.orgId,
       title: parsed.data.title.trim(),
-      status: parsed.data.status,
+      status: "draft",
       rating: ratingStored,
       checklist: checklistStored,
       ai_draft: toNullableText(parsed.data.ai_draft),
@@ -224,7 +223,7 @@ export async function updateReview(
     .from("reviews")
     .update({
       title: parsed.data.title.trim(),
-      status: parsed.data.status,
+      status: "draft",
       rating: ratingStored,
       checklist: checklistStored,
       ai_draft: toNullableText(parsed.data.ai_draft),
@@ -270,63 +269,6 @@ export async function deleteReview(
   const { error } = await access.supabase
     .from("reviews")
     .delete()
-    .eq("id", parsed.data.id)
-    .eq("employee_id", parsed.data.employeeId)
-    .eq("org_id", access.orgId);
-
-  if (error) {
-    return { ok: false, error: error.message };
-  }
-
-  revalidateReviewSurfaces(parsed.data.employeeId);
-  return { ok: true };
-}
-
-export async function publishReview(
-  input: unknown,
-): Promise<ReviewActionResult> {
-  const parsed = reviewPublishSchema.safeParse(input);
-  if (!parsed.success) {
-    return { ok: false, error: "Invalid publish request." };
-  }
-
-  const access = await getOrgAccess();
-  if (!access) {
-    return { ok: false, error: "We could not load your workspace." };
-  }
-
-  const { data: row } = await access.supabase
-    .from("reviews")
-    .select("id, status, final_review")
-    .eq("id", parsed.data.id)
-    .eq("employee_id", parsed.data.employeeId)
-    .eq("org_id", access.orgId)
-    .maybeSingle();
-
-  if (!row) {
-    return { ok: false, error: "Review not found or unavailable." };
-  }
-
-  if (row.status !== "draft") {
-    return {
-      ok: false,
-      error:
-        "This review is already published or archived. Use edit to adjust status.",
-    };
-  }
-
-  const summary = row.final_review?.trim() ?? "";
-  if (summary.length < 15) {
-    return {
-      ok: false,
-      error:
-        "Add at least 15 characters to the final summary before publishing.",
-    };
-  }
-
-  const { error } = await access.supabase
-    .from("reviews")
-    .update({ status: "published" })
     .eq("id", parsed.data.id)
     .eq("employee_id", parsed.data.employeeId)
     .eq("org_id", access.orgId);

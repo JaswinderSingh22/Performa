@@ -751,7 +751,7 @@ export function GenerateReviewFromPeriodWizard({
                 <div>
                   <Label className="text-base">Or stitch prior quarters</Label>
                   <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
-                    Combines narratives you already finalized—fewer tokens, longer
+                    Combines narratives you already saved—fewer tokens, longer
                     spans.
                   </p>
                 </div>

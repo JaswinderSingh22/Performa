@@ -99,7 +99,6 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
       .from("reviews")
       .select(`employee_id, rating, employees ( name )`)
       .eq("org_id", orgId)
-      .eq("status", "published")
       .not("rating", "is", null),
   ]);
 
@@ -110,24 +109,19 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
     : (achievementCountRes.count ?? 0);
   const noteCount = noteCountRes.error ? 0 : noteCountRes.count ?? 0;
 
-  const reviewByStatus = { draft: 0, published: 0, archived: 0 };
-  let pubRatingSum = 0;
-  let publishedRatedReviewCount = 0;
+  let ratedReviewSum = 0;
+  let ratedReviewCount = 0;
   if (!reviewsStatusRes.error && reviewsStatusRes.data) {
     for (const row of reviewsStatusRes.data) {
-      const s = row.status as keyof typeof reviewByStatus;
-      if (s === "draft" || s === "published" || s === "archived") {
-        reviewByStatus[s] += 1;
-      }
-      if (row.status === "published" && row.rating !== null && row.rating !== undefined) {
-        pubRatingSum += row.rating;
-        publishedRatedReviewCount += 1;
+      if (row.rating !== null && row.rating !== undefined) {
+        ratedReviewSum += row.rating;
+        ratedReviewCount += 1;
       }
     }
   }
   const avgRatingPublished =
-    publishedRatedReviewCount > 0
-      ? Math.round((pubRatingSum / publishedRatedReviewCount) * 10) / 10
+    ratedReviewCount > 0
+      ? Math.round((ratedReviewSum / ratedReviewCount) * 10) / 10
       : null;
 
   const teams: TeamSlice[] = [];
@@ -157,7 +151,7 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
           createdAt: r.created_at,
         }));
 
-  /** Avg finalized review score per person (published + numeric rating only). */
+  /** Avg review score per person (numeric ratings only). */
   const agg = new Map<
     string,
     { sum: number; n: number; name: string }
@@ -219,9 +213,8 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
       reviewEmployeesRes.error || !reviewEmployeesRes.data
         ? 0
         : new Set(reviewEmployeesRes.data.map((r) => r.employee_id)).size,
-    reviewByStatus,
     avgRating: avgRatingPublished,
-    ratedReviewCount: publishedRatedReviewCount,
+    ratedReviewCount,
     teams,
     recentReviews,
     teamsError: Boolean(employeesTeamsRes.error),
@@ -233,7 +226,7 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
     <>
       <DashboardHeader
         title="Dashboard"
-        description="Employees, finalized reviews & scores, achievements, and notes—each behaves differently."
+        description="Employees, review records & scores, achievements, and notes at a glance."
       />
       <DashboardView {...analyticsProps} />
     </>
