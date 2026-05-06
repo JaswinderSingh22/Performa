@@ -45,7 +45,13 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-export function HelpDialog(): React.ReactElement {
+export function HelpDialog({
+  collapsed = false,
+  className,
+}: {
+  collapsed?: boolean;
+  className?: string;
+}): React.ReactElement {
   const [open, setOpen] = React.useState(false);
   const [toast, setToast] = React.useState<string | null>(null);
 
@@ -96,13 +102,20 @@ export function HelpDialog(): React.ReactElement {
     <Dialog open={open} onOpenChange={setOpen}>
       <Button
         type="button"
-        variant="ghost"
-        size="sm"
-        className="hover:bg-muted/85 text-muted-foreground hover:text-foreground hover:border-border/65 w-full justify-start gap-2 rounded-xl border border-transparent px-2.5 shadow-sm transition-colors duration-200"
+        variant={collapsed ? "outline" : "ghost"}
+        size={collapsed ? "icon-sm" : "sm"}
+        className={
+          className ??
+          (collapsed
+            ? "border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary shadow-sm"
+            : "hover:bg-muted/85 text-muted-foreground hover:text-foreground hover:border-border/65 w-full justify-start gap-2 rounded-xl border border-transparent px-2.5 shadow-sm transition-colors duration-200")
+        }
         onClick={() => setOpen(true)}
+        aria-label={collapsed ? "Help" : undefined}
+        title={collapsed ? "Help" : undefined}
       >
         <HelpCircleIcon className="size-4 opacity-80" aria-hidden />
-        Help
+        {collapsed ? null : "Help"}
       </Button>
 
       <DialogContent className="sm:max-w-lg">
