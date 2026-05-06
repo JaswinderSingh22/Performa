@@ -72,6 +72,13 @@ export async function importEmployeesFromCsv(
     .maybeSingle();
 
   const plan = normalizePlan(orgRow ? getEffectivePlanFromOrg(orgRow) : undefined);
+  if (plan === "free") {
+    return {
+      ok: false,
+      error:
+        "CSV import is available on Pro and Pro+ plans. Upgrade your workspace to import employees in bulk.",
+    };
+  }
   const seatCap = getMaxEmployees(plan);
 
   const [{ count: existingCount, error: cntErr }, { data: existingEmployees }] =

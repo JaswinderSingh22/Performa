@@ -82,6 +82,10 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
   const addDisabledReason = seatLimitReached
     ? `Your ${planLabel(effectivePlan)} workspace allows up to ${seatCap} employees. Upgrade to add more.`
     : null;
+  const importDisabled = effectivePlan === "free";
+  const importDisabledReason = importDisabled
+    ? "CSV import is available on Pro and Pro+ plans. Upgrade to import employees in bulk."
+    : null;
 
   const createdSorted = [...rows].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
@@ -157,7 +161,10 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
         description="Managers you support with structured review context."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <ImportEmployeesDialog />
+            <ImportEmployeesDialog
+              disabled={importDisabled}
+              disabledReason={importDisabledReason}
+            />
             <AddEmployeeDialog
               teams={teams}
               departments={departments}
@@ -175,7 +182,10 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
               No employees yet—add someone to begin tracking achievements,
               notes, and reviews.
             </p>
-            <ImportEmployeesDialog />
+            <ImportEmployeesDialog
+              disabled={importDisabled}
+              disabledReason={importDisabledReason}
+            />
             <AddEmployeeDialog
               teams={teams}
               departments={departments}

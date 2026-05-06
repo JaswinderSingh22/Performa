@@ -139,7 +139,13 @@ function validateRow(row: ParsedRow): string | null {
   return null;
 }
 
-export function ImportEmployeesDialog(): ReactElement {
+export function ImportEmployeesDialog({
+  disabled = false,
+  disabledReason,
+}: {
+  disabled?: boolean;
+  disabledReason?: string | null;
+}): ReactElement {
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [clientError, setClientError] = React.useState<string | null>(null);
@@ -290,7 +296,17 @@ export function ImportEmployeesDialog(): ReactElement {
         variant="outline"
         size="sm"
         className="gap-1"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          if (disabled) return;
+          setOpen(true);
+        }}
+        disabled={disabled}
+        title={
+          disabled
+            ? disabledReason ??
+              "CSV import is available on Pro and Pro+ plans."
+            : undefined
+        }
       >
         <UploadIcon className="size-3.5" aria-hidden />
         Import CSV

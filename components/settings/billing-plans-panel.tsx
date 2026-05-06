@@ -90,9 +90,18 @@ function featureList(plan: Exclude<PlanId, "free">): string[] {
   return [
     seatsText,
     ...config.features
-      .filter((f) => f === "advanced_analytics" || f === "priority_support")
+      .filter(
+        (f) =>
+          f === "csv_employee_import" ||
+          f === "advanced_analytics" ||
+          f === "priority_support",
+      )
       .map((f) =>
-        f === "advanced_analytics" ? "Advanced analytics insights" : "Priority support"
+        f === "csv_employee_import"
+          ? "CSV employee import"
+          : f === "advanced_analytics"
+            ? "Advanced analytics insights"
+            : "Priority support",
       ),
     "AI-powered roll-ups included",
     "Fair usage applies",

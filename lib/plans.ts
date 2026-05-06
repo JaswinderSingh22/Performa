@@ -7,6 +7,7 @@ export type PlanFeature =
   | "limited_reviews"
   | "departments"
   | "teams"
+  | "csv_employee_import"
   | "rollups"
   | "reviews"
   | "standard_cadence"
@@ -53,7 +54,14 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     priceMonthlyInr: 9_999,
     maxEmployees: 100,
     aiUsageVisible: false,
-    features: ["departments", "teams", "rollups", "reviews", "standard_cadence"],
+    features: [
+      "departments",
+      "teams",
+      "csv_employee_import",
+      "rollups",
+      "reviews",
+      "standard_cadence",
+    ],
     internalUsageLimit: {
       orgMonthly: 1_500,
     },
@@ -65,6 +73,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     features: [
       "departments",
       "teams",
+      "csv_employee_import",
       "rollups",
       "reviews",
       "standard_cadence",
