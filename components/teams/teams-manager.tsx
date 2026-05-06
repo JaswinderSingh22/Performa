@@ -21,6 +21,7 @@ import {
   renameTeam,
   updateDepartmentReviewCycle,
 } from "@/actions/teams";
+import { OrgHierarchyPanel } from "@/components/teams/org-hierarchy-panel";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -55,6 +56,10 @@ type EmployeeTeamRow = {
   id: string;
   name: string;
   email: string;
+  role?: string | null;
+  employee_code?: string | null;
+  reporting_to_employee_id?: string | null;
+  is_active?: boolean | null;
   team_name?: string | null;
   department?: string | null;
 };
@@ -510,6 +515,7 @@ export function TeamsManager({
         </Card>
       </div>
 
+      <OrgHierarchyPanel employees={employees} />
     </div>
   );
 }

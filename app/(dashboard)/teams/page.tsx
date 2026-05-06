@@ -43,7 +43,9 @@ export default async function TeamsPage(): Promise<ReactElement | null> {
       .order("name", { ascending: true }),
     access.supabase
       .from("employees")
-      .select("id, name, email, team_name, department")
+      .select(
+        "id, name, email, role, employee_code, reporting_to_employee_id, is_active, team_name, department",
+      )
       .eq("org_id", access.orgId)
       .order("name", { ascending: true }),
     user
@@ -65,7 +67,15 @@ export default async function TeamsPage(): Promise<ReactElement | null> {
   const departments = (departmentsRes.data ?? []) as DepartmentRow[];
   const employees = (employeesRes.data ?? []) as Pick<
     EmployeeRow,
-    "id" | "name" | "email" | "team_name" | "department"
+    | "id"
+    | "name"
+    | "email"
+    | "role"
+    | "employee_code"
+    | "reporting_to_employee_id"
+    | "is_active"
+    | "team_name"
+    | "department"
   >[];
   const canManage = profileRes.data?.role === "admin";
 
