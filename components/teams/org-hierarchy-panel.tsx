@@ -595,7 +595,7 @@ function OrgHierarchyCanvas({
   const arrowId = React.useId();
 
   return (
-    <div className="relative h-[560px] overflow-hidden rounded-2xl border border-border/70 bg-background/40">
+    <div className="relative h-full overflow-hidden rounded-2xl border border-border/70 bg-background/40">
       <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
         <Button type="button" size="sm" variant="outline" onClick={() => zoom(0.12)}>
           <ZoomInIcon className="size-4" aria-hidden />
@@ -725,12 +725,14 @@ function OrgHierarchyCanvas({
 
 export function OrgHierarchyPanel({
   employees,
+  defaultMode = "canvas",
 }: {
   employees: HierarchyEmployeeRow[];
+  defaultMode?: Mode;
 }): React.ReactElement {
   const reduced = useReducedMotion() === true;
   const { nodes, roots } = React.useMemo(() => buildIndex(employees), [employees]);
-  const [mode, setMode] = React.useState<Mode>("tree");
+  const [mode, setMode] = React.useState<Mode>(defaultMode);
   const [query, setQuery] = React.useState("");
 
   const { expanded: autoExpanded, matches } = useAutoExpandForQuery({
@@ -777,6 +779,18 @@ export function OrgHierarchyPanel({
           <div className="bg-muted/40 flex rounded-full border border-border/60 p-0.5">
             <button
               type="button"
+              onClick={() => setMode("canvas")}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
+                mode === "canvas"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Canvas
+            </button>
+            <button
+              type="button"
               onClick={() => setMode("tree")}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
@@ -801,18 +815,6 @@ export function OrgHierarchyPanel({
               <RowsIcon className="size-3.5" aria-hidden />
               List
             </button>
-            <button
-              type="button"
-              onClick={() => setMode("canvas")}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
-                mode === "canvas"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              Canvas
-            </button>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={collapseAll}>
             Collapse
@@ -828,31 +830,35 @@ export function OrgHierarchyPanel({
           initial={reduced ? false : { opacity: 0, y: 8 }}
           animate={reduced ? false : { opacity: 1, y: 0 }}
           transition={{ duration: reduced ? 0 : 0.28, ease: easingOut }}
-          className="rounded-2xl border border-border/70 bg-card/50 p-3"
+          className="h-[420px] overflow-hidden rounded-2xl border border-border/70 bg-card/50 p-3"
         >
-          {employees.length === 0 ? (
-            <p className="text-muted-foreground px-2 py-6 text-sm">
-              No employees yet.
-            </p>
-          ) : mode === "list" ? (
-            <CollapsibleList
-              nodes={nodes}
-              roots={roots}
-              expanded={expanded}
-              setExpanded={setExpanded}
-              matches={matches}
-            />
-          ) : mode === "canvas" ? (
-            <OrgHierarchyCanvas nodes={nodes} roots={roots} matches={matches} />
-          ) : (
-            <TreeView
-              nodes={nodes}
-              roots={roots}
-              expanded={expanded}
-              setExpanded={setExpanded}
-              matches={matches}
-            />
-          )}
+          <div className="h-full overflow-y-auto overscroll-contain pr-1">
+            {employees.length === 0 ? (
+              <p className="text-muted-foreground px-2 py-6 text-sm">
+                No employees yet.
+              </p>
+            ) : mode === "list" ? (
+              <CollapsibleList
+                nodes={nodes}
+                roots={roots}
+                expanded={expanded}
+                setExpanded={setExpanded}
+                matches={matches}
+              />
+            ) : mode === "canvas" ? (
+              <div className="h-full">
+                <OrgHierarchyCanvas nodes={nodes} roots={roots} matches={matches} />
+              </div>
+            ) : (
+              <TreeView
+                nodes={nodes}
+                roots={roots}
+                expanded={expanded}
+                setExpanded={setExpanded}
+                matches={matches}
+              />
+            )}
+          </div>
         </motion.div>
       </CardContent>
     </Card>

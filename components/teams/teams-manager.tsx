@@ -271,6 +271,8 @@ export function TeamsManager({
         </p>
       ) : null}
 
+      <OrgHierarchyPanel employees={employees} defaultMode="canvas" />
+
       <div className="grid gap-6 xl:grid-cols-2 xl:items-stretch">
         <Card className="border-border/65 flex flex-col shadow-md xl:h-[620px]">
           <CardHeader>
@@ -371,8 +373,8 @@ export function TeamsManager({
                       </div>
                       <Button
                         type="button"
-                        size="sm"
-                        variant="ghost"
+                        size="icon-sm"
+                        variant="outline"
                         disabled={!canManage || busy === `rename:${team.id}`}
                         onClick={() => void rename(team.id, team.name)}
                         aria-label={`Rename ${team.name}`}
@@ -386,8 +388,8 @@ export function TeamsManager({
                       </Button>
                       <Button
                         type="button"
-                        size="sm"
-                        variant="ghost"
+                        size="icon-sm"
+                        variant="outline"
                         disabled={!canManage || busy === `delete:${team.id}`}
                         onClick={() => void remove(team.id, team.name)}
                         className="text-destructive hover:text-destructive"
@@ -468,8 +470,8 @@ export function TeamsManager({
                       <div className="flex items-center gap-1">
                         <Button
                           type="button"
-                          size="sm"
-                          variant="ghost"
+                          size="icon-sm"
+                          variant="outline"
                           disabled={!canManage || busy === `rename-department:${department.id}`}
                           onClick={() => void renameDept(department.id, department.name)}
                           aria-label={`Rename ${department.name}`}
@@ -483,8 +485,8 @@ export function TeamsManager({
                         </Button>
                         <Button
                           type="button"
-                          size="sm"
-                          variant="ghost"
+                          size="icon-sm"
+                          variant="outline"
                           disabled={!canManage || busy === `delete-department:${department.id}`}
                           onClick={() => void removeDept(department.id, department.name)}
                           className="text-destructive hover:text-destructive"
@@ -514,8 +516,6 @@ export function TeamsManager({
           </CardContent>
         </Card>
       </div>
-
-      <OrgHierarchyPanel employees={employees} />
     </div>
   );
 }
