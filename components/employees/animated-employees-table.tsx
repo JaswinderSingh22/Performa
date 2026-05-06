@@ -14,6 +14,7 @@ export type EmployeeListRow = EmployeeRow & {
   achievement_count: number;
   review_count: number;
   notes_count: number;
+  is_team_lead?: boolean;
   access_role?: string | null;
   access_invited_at?: string | null;
 };
@@ -304,24 +305,32 @@ export function AnimatedEmployeesTable({
                         </div>
                       </div>
                       <div className="px-3 py-3 text-left border-r border-border/60">
-                        {employee.access_role ? (
-                          <span className="border-border/60 bg-muted/40 text-foreground inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold">
-                            {employee.access_role === "tl"
-                              ? "TL"
-                              : employee.access_role === "hr"
-                                ? "HR"
-                                : employee.access_role === "admin"
-                                  ? "Admin"
-                                  : "Manager"}
-                            {employee.access_invited_at ? (
-                              <span className="text-muted-foreground font-medium">
-                                · invited
-                              </span>
-                            ) : null}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
+                        <div className="flex flex-wrap gap-1">
+                          {employee.is_team_lead ? (
+                            <span className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                              Lead
+                            </span>
+                          ) : null}
+                          {employee.access_role ? (
+                            <span className="border-border/60 bg-muted/40 text-foreground inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold">
+                              {employee.access_role === "tl"
+                                ? "TL"
+                                : employee.access_role === "hr"
+                                  ? "HR"
+                                  : employee.access_role === "admin"
+                                    ? "Org"
+                                    : "Mgr"}
+                              {employee.access_invited_at ? (
+                                <span className="text-muted-foreground font-medium">
+                                  · invited
+                                </span>
+                              ) : null}
+                            </span>
+                          ) : null}
+                          {!employee.is_team_lead && !employee.access_role ? (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          ) : null}
+                        </div>
                       </div>
                       <div className="px-3 py-3 text-left text-muted-foreground truncate border-r border-border/60">
                         {employee.email}

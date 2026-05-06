@@ -71,6 +71,7 @@ export interface TeamRow {
   org_id: string;
   name: string;
   department_id: string;
+  manager_employee_id?: string | null;
   created_at: string;
 }
 

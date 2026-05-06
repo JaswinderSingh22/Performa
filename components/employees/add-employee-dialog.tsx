@@ -29,11 +29,14 @@ type TeamOption = { id: string; name: string };
 export function AddEmployeeDialog({
   teams,
   departments,
+  currentUserRole,
   disabled = false,
   disabledReason,
 }: {
   teams: TeamOption[];
   departments: TeamOption[];
+  /** The role of the currently logged-in user — restricts which access roles they can grant. */
+  currentUserRole?: string | null;
   disabled?: boolean;
   disabledReason?: string | null;
 }): React.ReactElement {
@@ -183,8 +186,12 @@ export function AddEmployeeDialog({
                   <option value="none">No login access</option>
                   <option value="tl">TL</option>
                   <option value="manager">Manager</option>
-                  <option value="hr">HR</option>
-                  <option value="admin">Admin</option>
+                  {(currentUserRole === "admin" || currentUserRole === "hr") && (
+                    <>
+                      <option value="hr">HR</option>
+                      <option value="admin">Admin</option>
+                    </>
+                  )}
                 </select>
                 <p className="text-muted-foreground text-xs">
                   If selected, we’ll send an invite email to this employee.

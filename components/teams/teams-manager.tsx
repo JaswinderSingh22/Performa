@@ -258,17 +258,14 @@ export function TeamsManager({
     router.refresh();
   };
 
-  // Set of employee IDs that are leads of at least one team.
-  const leadEmployeeIds = React.useMemo(
-    () => new Set(teams.map((t) => t.manager_employee_id).filter(Boolean) as string[]),
-    [teams],
-  );
-
-  // Enrich employees with is_lead for the org chart.
-  const enrichedForHierarchy = React.useMemo(
-    () => employees.map((e) => ({ ...e, is_lead: leadEmployeeIds.has(e.id) })),
-    [employees, leadEmployeeIds],
-  );
+  // teamName → lead employee ID for the org chart (authoritative source).
+  const teamLeadMap = React.useMemo(() => {
+    const m = new Map<string, string>();
+    for (const t of teams) {
+      if (t.manager_employee_id && t.name) m.set(t.name.trim(), t.manager_employee_id);
+    }
+    return m;
+  }, [teams]);
 
   const memberCountByTeam = React.useMemo(() => {
     const map = new Map<string, number>();
@@ -308,7 +305,7 @@ export function TeamsManager({
         </p>
       ) : null}
 
-      <OrgHierarchyPanel employees={enrichedForHierarchy} defaultMode="canvas" />
+      <OrgHierarchyPanel employees={employees} teamLeadMap={teamLeadMap} defaultMode="canvas" />
 
       <div className="grid gap-6 xl:grid-cols-2 xl:items-stretch">
         <Card className="border-border/65 flex flex-col shadow-md xl:h-[620px]">

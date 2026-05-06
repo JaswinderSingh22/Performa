@@ -158,6 +158,7 @@ export default async function EmployeeInsightsPage({
               readOnly={locked}
               accessRole={(accessRes.data?.role as string | null) ?? null}
               accessInvitedAt={(accessRes.data?.invited_at as string | null) ?? null}
+              currentUserRole={access.role}
             />
           </div>
         }

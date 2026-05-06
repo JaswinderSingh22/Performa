@@ -107,22 +107,9 @@ export async function createEmployee(
 
   if (error) {
     if (isUniqueViolation(error)) {
-      // In dev, server actions can be invoked twice; treat duplicates as idempotent success.
-      const email = parsed.data.email.toLowerCase();
-      const code = parsed.data.employee_code.trim();
-      const { data: existing } = await access.supabase
-        .from("employees")
-        .select("id")
-        .eq("org_id", access.orgId)
-        .or(`email.eq.${email},employee_code.eq.${code}`)
-        .maybeSingle();
-      if (existing?.id) {
-        revalidateEmployeeSurfaces(existing.id);
-        return { ok: true, data: { id: existing.id } };
-      }
       return {
         ok: false,
-        error: "You already have an employee with this email or Employee ID.",
+        error: "An employee with this email or Employee ID already exists in your workspace.",
       };
     }
     return { ok: false, error: error.message };

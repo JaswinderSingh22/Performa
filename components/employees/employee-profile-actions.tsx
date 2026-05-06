@@ -59,6 +59,7 @@ export function EmployeeProfileActions({
   readOnly = false,
   accessRole,
   accessInvitedAt,
+  currentUserRole,
 }: {
   employee: EmployeeRow;
   teams: TeamOption[];
@@ -66,6 +67,8 @@ export function EmployeeProfileActions({
   readOnly?: boolean;
   accessRole?: string | null;
   accessInvitedAt?: string | null;
+  /** The role of the currently logged-in user — restricts which access roles they can grant. */
+  currentUserRole?: string | null;
 }): React.ReactElement {
   const router = useRouter();
   const [editOpen, setEditOpen] = React.useState(false);
@@ -253,8 +256,12 @@ export function EmployeeProfileActions({
                       <option value="none">No login access</option>
                       <option value="tl">TL</option>
                       <option value="manager">Manager</option>
-                      <option value="hr">HR</option>
-                      <option value="admin">Admin</option>
+                      {(currentUserRole === "admin" || currentUserRole === "hr") && (
+                        <>
+                          <option value="hr">HR</option>
+                          <option value="admin">Admin</option>
+                        </>
+                      )}
                     </select>
                     <p className="text-muted-foreground text-xs">
                       {accessInvitedAt

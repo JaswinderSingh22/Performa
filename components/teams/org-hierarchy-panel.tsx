@@ -31,8 +31,6 @@ export type HierarchyEmployeeRow = {
   is_active?: boolean | null;
   team_name?: string | null;
   department?: string | null;
-  /** True when this employee is the assigned lead of their team. */
-  is_lead?: boolean;
 };
 
 type Mode = "tree" | "list" | "canvas";
@@ -42,6 +40,7 @@ type Node = {
   name: string;
   employee_code: string;
   is_active: boolean;
+  /** Derived at build time: employee is lead of ≥1 team. */
   is_lead: boolean;
   children: string[];
 };
@@ -54,11 +53,22 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-function buildIndex(rows: HierarchyEmployeeRow[]): {
+/**
+ * teamLeadMap: teamName → lead employee ID (from teams.manager_employee_id).
+ * Passed in so a TL leading multiple teams is correctly shown as parent of all
+ * those teams' members, even when they are physically in only one team.
+ */
+function buildIndex(
+  rows: HierarchyEmployeeRow[],
+  teamLeadMap: Map<string, string>,
+): {
   nodes: Map<string, Node>;
   roots: string[];
   parentById: Map<string, string>;
 } {
+  // Collect every employee ID that is a lead of any team.
+  const leadIds = new Set(teamLeadMap.values());
+
   const nodes = new Map<string, Node>();
   for (const r of rows) {
     nodes.set(r.id, {
@@ -66,25 +76,25 @@ function buildIndex(rows: HierarchyEmployeeRow[]): {
       name: r.name ?? "—",
       employee_code: (r.employee_code ?? "").trim(),
       is_active: r.is_active !== false,
-      is_lead: r.is_lead === true,
+      is_lead: leadIds.has(r.id),
       children: [],
     });
   }
 
-  // Group by team; make the lead the parent of all other team members.
-  const teamLeadId = new Map<string, string>(); // teamName → lead's employee id
+  // Group employees by team_name.
   const teamMemberIds = new Map<string, string[]>(); // teamName → all member ids
   for (const r of rows) {
     const team = r.team_name?.trim();
     if (!team) continue;
     if (!teamMemberIds.has(team)) teamMemberIds.set(team, []);
     teamMemberIds.get(team)!.push(r.id);
-    if (r.is_lead) teamLeadId.set(team, r.id);
   }
 
   const parentById = new Map<string, string>();
   for (const [team, memberIds] of teamMemberIds) {
-    const leadId = teamLeadId.get(team);
+    // Use the authoritative lead map (not employee.team_name) so a TL leading
+    // multiple teams is correctly set as parent of all those members.
+    const leadId = teamLeadMap.get(team);
     if (!leadId) continue;
     const leadNode = nodes.get(leadId);
     if (!leadNode) continue;
@@ -103,28 +113,24 @@ function buildIndex(rows: HierarchyEmployeeRow[]): {
   for (const n of nodes.values()) {
     for (const c of n.children) allChildren.add(c);
   }
-  const roots = [...nodes.keys()]
+  const directRoots = [...nodes.keys()]
     .filter((id) => !allChildren.has(id))
     .sort((a, b) =>
       (nodes.get(a)?.name ?? "").localeCompare(nodes.get(b)?.name ?? "", undefined, { sensitivity: "base" }),
     );
 
-  // Single virtual root if there are multiple top-level nodes.
-  if (roots.length > 1) {
-    const virtualId = "__org_root__";
-    nodes.set(virtualId, {
-      id: virtualId,
-      name: "Organisation",
-      employee_code: "",
-      is_active: true,
-      is_lead: false,
-      children: roots,
-    });
-    for (const r of roots) parentById.set(r, virtualId);
-    return { nodes, roots: [virtualId], parentById };
-  }
-
-  return { nodes, roots, parentById };
+  // Always wrap in a single virtual "Organisation" root.
+  const virtualId = "__org_root__";
+  nodes.set(virtualId, {
+    id: virtualId,
+    name: "Organisation",
+    employee_code: "",
+    is_active: true,
+    is_lead: false,
+    children: directRoots,
+  });
+  for (const r of directRoots) parentById.set(r, virtualId);
+  return { nodes, roots: [virtualId], parentById };
 }
 
 function label(node: Node): string {
@@ -723,13 +729,19 @@ function OrgHierarchyCanvas({
 
 export function OrgHierarchyPanel({
   employees,
+  teamLeadMap = new Map(),
   defaultMode = "canvas",
 }: {
   employees: HierarchyEmployeeRow[];
+  /** teamName → lead employee ID (from teams.manager_employee_id). */
+  teamLeadMap?: Map<string, string>;
   defaultMode?: Mode;
 }): React.ReactElement {
   const reduced = useReducedMotion() === true;
-  const { nodes, roots, parentById } = React.useMemo(() => buildIndex(employees), [employees]);
+  const { nodes, roots, parentById } = React.useMemo(
+    () => buildIndex(employees, teamLeadMap),
+    [employees, teamLeadMap],
+  );
   const [mode, setMode] = React.useState<Mode>(defaultMode);
   const [query, setQuery] = React.useState("");
 

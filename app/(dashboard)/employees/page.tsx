@@ -70,7 +70,7 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
       .eq("org_id", access.orgId),
     access.supabase
       .from("teams")
-      .select("id, name")
+      .select("id, name, manager_employee_id")
       .eq("org_id", access.orgId)
       .order("name", { ascending: true }),
     access.supabase
@@ -149,26 +149,28 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
   const reviewsByEmployee = buildCountIndex(revRes.data ?? undefined);
   const notesByEmployee = buildCountIndex(noteRes.data ?? undefined);
 
-  const enriched: EmployeeListRow[] = rows.map((employee) => ({
-    ...employee,
-    achievement_count: achievementsByEmployee.get(employee.id) ?? 0,
-    review_count: reviewsByEmployee.get(employee.id) ?? 0,
-    notes_count: notesByEmployee.get(employee.id) ?? 0,
-    access_role:
-      (() => {
-        const row = (accessRes.data ?? []).find(
-          (m) => (m.employee_id as string | null) === employee.id,
-        );
-        return (row?.role as string | null) ?? null;
-      })(),
-    access_invited_at:
-      (() => {
-        const row = (accessRes.data ?? []).find(
-          (m) => (m.employee_id as string | null) === employee.id,
-        );
-        return (row?.invited_at as string | null) ?? null;
-      })(),
-  }));
+  const accessByEmployee = new Map(
+    (accessRes.data ?? []).map((m) => [m.employee_id as string, m]),
+  );
+
+  const teams = (teamRes.data ?? []) as Pick<TeamRow, "id" | "name" | "manager_employee_id">[];
+  const leadEmployeeIds = new Set(
+    teams.map((t) => t.manager_employee_id).filter((id): id is string => !!id),
+  );
+  const departments = (departmentRes.data ?? []) as Pick<DepartmentRow, "id" | "name">[];
+
+  const enriched: EmployeeListRow[] = rows.map((employee) => {
+    const member = accessByEmployee.get(employee.id);
+    return {
+      ...employee,
+      achievement_count: achievementsByEmployee.get(employee.id) ?? 0,
+      review_count: reviewsByEmployee.get(employee.id) ?? 0,
+      notes_count: notesByEmployee.get(employee.id) ?? 0,
+      is_team_lead: leadEmployeeIds.has(employee.id),
+      access_role: (member?.role as string | null) ?? null,
+      access_invited_at: (member?.invited_at as string | null) ?? null,
+    };
+  });
 
   const activeEmployees = hasLocked
     ? enriched.filter((e) => activeIdSet.has(e.id))
@@ -177,11 +179,6 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
     ? enriched.filter((e) => !activeIdSet.has(e.id))
     : [];
 
-  const teams = (teamRes.data ?? []) as Pick<TeamRow, "id" | "name">[];
-  const departments = (departmentRes.data ?? []) as Pick<
-    DepartmentRow,
-    "id" | "name"
-  >[];
   return (
     <>
       <DashboardHeader
@@ -197,6 +194,7 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
               <AddEmployeeDialog
                 teams={teams}
                 departments={departments}
+                currentUserRole={access.role}
                 disabled={seatLimitReached}
                 disabledReason={addDisabledReason}
               />
@@ -221,6 +219,7 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
                 <AddEmployeeDialog
                   teams={teams}
                   departments={departments}
+                  currentUserRole={access.role}
                   disabled={seatLimitReached}
                   disabledReason={addDisabledReason}
                 />
