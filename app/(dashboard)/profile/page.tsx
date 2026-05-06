@@ -3,22 +3,32 @@ import { redirect } from "next/navigation";
 
 import { ProfileForm } from "@/components/profile/profile-form";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getOrgAccess } from "@/lib/org-context";
 
 export default async function ProfilePage(): Promise<ReactElement> {
-  const supabase = await createServerSupabaseClient();
+  const access = await getOrgAccess();
+  if (!access) redirect("/login?next=/profile");
+
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await access.supabase.auth.getUser();
   if (!user?.email) {
     redirect("/login?next=/profile");
   }
 
-  const { data: profile, error } = await supabase
-    .from("users")
-    .select("full_name, role, job_title, department, years_experience, bio")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [{ data: profile, error }, { data: membership }] = await Promise.all([
+    access.supabase
+      .from("user_profiles")
+      .select("full_name, job_title, department, years_experience, bio")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    access.supabase
+      .from("workspace_members")
+      .select("role")
+      .eq("org_id", access.orgId)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+  ]);
 
   if (error || !profile) {
     redirect("/onboarding");
@@ -35,7 +45,7 @@ export default async function ProfilePage(): Promise<ReactElement> {
           initial={{
             email: user.email,
             full_name: profile.full_name,
-            role: profile.role,
+            role: (membership?.role ?? "manager") as string,
             job_title: profile.job_title ?? "",
             department: profile.department ?? "",
             years_experience: profile.years_experience ?? null,

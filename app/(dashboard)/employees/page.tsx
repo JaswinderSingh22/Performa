@@ -16,13 +16,46 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
   const access = await getOrgAccess();
   if (!access) return null;
 
-  const [empRes, achRes, revRes, noteRes, teamRes, departmentRes, orgRes] =
+  const isAdminLike = access.role === "admin" || access.role === "hr";
+  const isScoped = !isAdminLike && (access.role === "manager" || access.role === "tl");
+
+  // For scoped users (manager/TL): find teams they lead and show all members of those teams.
+  // Admin/HR see everyone.
+  let scopedTeamNames: string[] | null = null;
+  if (isScoped) {
+    if (access.employeeId) {
+      const { data: myTeams } = await access.supabase
+        .from("teams")
+        .select("name")
+        .eq("org_id", access.orgId)
+        .eq("manager_employee_id", access.employeeId);
+      scopedTeamNames = (myTeams ?? []).map((t) => t.name as string);
+    } else {
+      scopedTeamNames = []; // not linked to an employee record — see nothing
+    }
+  }
+
+  // Build the main employee query.
+  let empQuery = access.supabase
+    .from("employees")
+    .select("*")
+    .eq("org_id", access.orgId)
+    .order("name", { ascending: true });
+
+  if (scopedTeamNames !== null) {
+    if (scopedTeamNames.length === 0) {
+      empQuery = empQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+    } else {
+      // Show all employees in their teams, excluding themselves.
+      empQuery = empQuery
+        .in("team_name", scopedTeamNames)
+        .neq("id", access.employeeId ?? "00000000-0000-0000-0000-000000000000");
+    }
+  }
+
+  const [empRes, achRes, revRes, noteRes, teamRes, departmentRes, orgRes, accessRes] =
     await Promise.all([
-    access.supabase
-      .from("employees")
-      .select("*")
-      .eq("org_id", access.orgId)
-      .order("name", { ascending: true }),
+    empQuery,
     access.supabase
       .from("achievements")
       .select("employee_id")
@@ -50,6 +83,10 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
       .select("id, plan, subscription_status, subscription_current_end, razorpay_subscription_id")
       .eq("id", access.orgId)
       .maybeSingle(),
+    access.supabase
+      .from("workspace_members")
+      .select("employee_id, role, invited_at")
+      .eq("org_id", access.orgId),
   ]);
 
   if (empRes.error) {
@@ -72,6 +109,9 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
   }
   if (orgRes.error) {
     throw new Error(orgRes.error.message);
+  }
+  if (accessRes.error) {
+    throw new Error(accessRes.error.message);
   }
 
   const rows = (empRes.data ?? []) as EmployeeRow[];
@@ -109,25 +149,25 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
   const reviewsByEmployee = buildCountIndex(revRes.data ?? undefined);
   const notesByEmployee = buildCountIndex(noteRes.data ?? undefined);
 
-  const idToEmployeeCode = new Map<string, string>();
-  for (const e of rows) {
-    const code = e.employee_code?.trim() ?? "";
-    if (code) idToEmployeeCode.set(e.id, code);
-  }
-  const idToEmployeeName = new Map<string, string>();
-  for (const e of rows) {
-    const name = e.name?.trim() ?? "";
-    if (name) idToEmployeeName.set(e.id, name);
-  }
-
   const enriched: EmployeeListRow[] = rows.map((employee) => ({
     ...employee,
     achievement_count: achievementsByEmployee.get(employee.id) ?? 0,
     review_count: reviewsByEmployee.get(employee.id) ?? 0,
     notes_count: notesByEmployee.get(employee.id) ?? 0,
-    reporting_to_name: employee.reporting_to_employee_id
-      ? (idToEmployeeName.get(employee.reporting_to_employee_id) ?? null)
-      : null,
+    access_role:
+      (() => {
+        const row = (accessRes.data ?? []).find(
+          (m) => (m.employee_id as string | null) === employee.id,
+        );
+        return (row?.role as string | null) ?? null;
+      })(),
+    access_invited_at:
+      (() => {
+        const row = (accessRes.data ?? []).find(
+          (m) => (m.employee_id as string | null) === employee.id,
+        );
+        return (row?.invited_at as string | null) ?? null;
+      })(),
   }));
 
   const activeEmployees = hasLocked
@@ -142,57 +182,50 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
     DepartmentRow,
     "id" | "name"
   >[];
-  const employeeIdOptions = rows
-    .map((e) => ({
-      employee_code: e.employee_code?.trim() ?? "",
-      name: e.name,
-    }))
-    .filter((e) => e.employee_code.length > 0)
-    .sort((a, b) =>
-      a.employee_code.localeCompare(b.employee_code, undefined, {
-        sensitivity: "base",
-      }),
-    );
-
   return (
     <>
       <DashboardHeader
         title="Employees"
         description="Managers you support with structured review context."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <ImportEmployeesDialog
-              disabled={importDisabled}
-              disabledReason={importDisabledReason}
-            />
-            <AddEmployeeDialog
-              teams={teams}
-              departments={departments}
-              employeeIdOptions={employeeIdOptions}
-              disabled={seatLimitReached}
-              disabledReason={addDisabledReason}
-            />
-          </div>
+          isAdminLike ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <ImportEmployeesDialog
+                disabled={importDisabled}
+                disabledReason={importDisabledReason}
+              />
+              <AddEmployeeDialog
+                teams={teams}
+                departments={departments}
+                disabled={seatLimitReached}
+                disabledReason={addDisabledReason}
+              />
+            </div>
+          ) : undefined
         }
       />
       <main className="flex-1 overflow-x-auto p-6">
         {enriched.length === 0 ? (
           <div className="flex flex-col items-start gap-2">
             <p className="text-muted-foreground text-sm">
-              No employees yet—add someone to begin tracking achievements,
-              notes, and reviews.
+              {isScoped
+                ? "No employees found in your teams. Ask your admin to assign employees to your team."
+                : "No employees yet—add someone to begin tracking achievements, notes, and reviews."}
             </p>
-            <ImportEmployeesDialog
-              disabled={importDisabled}
-              disabledReason={importDisabledReason}
-            />
-            <AddEmployeeDialog
-              teams={teams}
-              departments={departments}
-              employeeIdOptions={employeeIdOptions}
-              disabled={seatLimitReached}
-              disabledReason={addDisabledReason}
-            />
+            {isAdminLike && (
+              <>
+                <ImportEmployeesDialog
+                  disabled={importDisabled}
+                  disabledReason={importDisabledReason}
+                />
+                <AddEmployeeDialog
+                  teams={teams}
+                  departments={departments}
+                  disabled={seatLimitReached}
+                  disabledReason={addDisabledReason}
+                />
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-8">

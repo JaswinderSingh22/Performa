@@ -14,7 +14,8 @@ export type EmployeeListRow = EmployeeRow & {
   achievement_count: number;
   review_count: number;
   notes_count: number;
-  reporting_to_name?: string | null;
+  access_role?: string | null;
+  access_invited_at?: string | null;
 };
 
 const MotionRow = motion.create("div");
@@ -77,7 +78,6 @@ export function AnimatedEmployeesTable({
         employee.name,
         employee.email,
         employee.employee_code ?? "",
-        employee.reporting_to_name ?? "",
         employee.role,
         employee.department,
         employee.team_name ?? "",
@@ -205,16 +205,16 @@ export function AnimatedEmployeesTable({
               )}
               style={{
                 gridTemplateColumns:
-                  "70px 150px 180px 150px 240px 160px 150px 150px 120px 120px 100px 100px",
+                  "70px 150px 180px 140px 150px 240px 160px 150px 150px 120px 120px 100px 100px",
               }}
             >
               {[
                 "S.No",
                 "Employee ID",
                 "Name",
-                "Reporting to",
+                "Access",
                 "Email",
-                "Role",
+                "Position",
                 "Department",
                 "Team",
                 "Joined",
@@ -227,7 +227,7 @@ export function AnimatedEmployeesTable({
                   className={cn(
                     "px-3 py-2 text-left",
                     "border-border/60 border-r",
-                    idx === 11 ? "border-r-0" : null,
+                    idx === 12 ? "border-r-0" : null,
                   )}
                 >
                   {h}
@@ -264,7 +264,7 @@ export function AnimatedEmployeesTable({
                       )}
                       style={{
                         gridTemplateColumns:
-                          "70px 150px 180px 150px 240px 160px 150px 150px 120px 120px 100px 100px",
+                          "70px 150px 180px 140px 150px 240px 160px 150px 150px 120px 120px 100px 100px",
                       }}
                       role="button"
                       tabIndex={0}
@@ -303,10 +303,25 @@ export function AnimatedEmployeesTable({
                           ) : null}
                         </div>
                       </div>
-                      <div className="px-3 py-3 text-left text-muted-foreground border-r border-border/60 truncate">
-                        {employee.reporting_to_name?.trim()
-                          ? employee.reporting_to_name
-                          : "—"}
+                      <div className="px-3 py-3 text-left border-r border-border/60">
+                        {employee.access_role ? (
+                          <span className="border-border/60 bg-muted/40 text-foreground inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold">
+                            {employee.access_role === "tl"
+                              ? "TL"
+                              : employee.access_role === "hr"
+                                ? "HR"
+                                : employee.access_role === "admin"
+                                  ? "Admin"
+                                  : "Manager"}
+                            {employee.access_invited_at ? (
+                              <span className="text-muted-foreground font-medium">
+                                · invited
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
                       </div>
                       <div className="px-3 py-3 text-left text-muted-foreground truncate border-r border-border/60">
                         {employee.email}

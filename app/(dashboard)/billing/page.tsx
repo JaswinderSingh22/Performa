@@ -20,7 +20,12 @@ export default async function BillingPage(): Promise<ReactElement | null> {
       .eq("id", access.orgId)
       .maybeSingle(),
     user
-      ? access.supabase.from("users").select("role").eq("id", user.id).maybeSingle()
+      ? access.supabase
+          .from("workspace_members")
+          .select("role")
+          .eq("org_id", access.orgId)
+          .eq("user_id", user.id)
+          .maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
 

@@ -13,6 +13,7 @@ import {
 
 import {
   assignTeamDepartment,
+  assignTeamManager,
   createDepartment,
   createTeam,
   deleteDepartment,
@@ -41,7 +42,14 @@ type TeamListRow = {
   id: string;
   name: string;
   department_id: string;
+  manager_employee_id: string | null;
   created_at: string;
+};
+
+type TeamLeadOption = {
+  employeeId: string;
+  name: string;
+  role: string;
 };
 
 type DepartmentListRow = {
@@ -58,7 +66,6 @@ type EmployeeTeamRow = {
   email: string;
   role?: string | null;
   employee_code?: string | null;
-  reporting_to_employee_id?: string | null;
   is_active?: boolean | null;
   team_name?: string | null;
   department?: string | null;
@@ -68,11 +75,13 @@ export function TeamsManager({
   teams,
   departments,
   employees,
+  teamLeads,
   canManage,
 }: {
   teams: TeamListRow[];
   departments: DepartmentListRow[];
   employees: EmployeeTeamRow[];
+  teamLeads: TeamLeadOption[];
   canManage: boolean;
 }): React.ReactElement {
   const router = useRouter();
@@ -216,6 +225,22 @@ export function TeamsManager({
     router.refresh();
   };
 
+  const setTeamManager = async (
+    teamId: string,
+    managerEmployeeId: string | null,
+  ): Promise<void> => {
+    if (!canManage) return;
+    setError(null);
+    setBusy(`manager:${teamId}`);
+    const res = await assignTeamManager({ teamId, managerEmployeeId });
+    setBusy(null);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    router.refresh();
+  };
+
   const moveTeamDepartment = async (
     teamId: string,
     departmentId: string,
@@ -232,6 +257,18 @@ export function TeamsManager({
     }
     router.refresh();
   };
+
+  // Set of employee IDs that are leads of at least one team.
+  const leadEmployeeIds = React.useMemo(
+    () => new Set(teams.map((t) => t.manager_employee_id).filter(Boolean) as string[]),
+    [teams],
+  );
+
+  // Enrich employees with is_lead for the org chart.
+  const enrichedForHierarchy = React.useMemo(
+    () => employees.map((e) => ({ ...e, is_lead: leadEmployeeIds.has(e.id) })),
+    [employees, leadEmployeeIds],
+  );
 
   const memberCountByTeam = React.useMemo(() => {
     const map = new Map<string, number>();
@@ -271,7 +308,7 @@ export function TeamsManager({
         </p>
       ) : null}
 
-      <OrgHierarchyPanel employees={employees} defaultMode="canvas" />
+      <OrgHierarchyPanel employees={enrichedForHierarchy} defaultMode="canvas" />
 
       <div className="grid gap-6 xl:grid-cols-2 xl:items-stretch">
         <Card className="border-border/65 flex flex-col shadow-md xl:h-[620px]">
@@ -335,76 +372,120 @@ export function TeamsManager({
                   Create your first team to organize employee ownership.
                 </p>
               ) : (
-                teams.map((team) => (
-                  <div
-                    key={team.id}
-                    className="bg-muted/25 border-border/60 flex flex-col gap-3 rounded-xl border px-3 py-3 md:flex-row md:items-center md:justify-between"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium">{team.name}</p>
-                      <p className="text-muted-foreground text-xs">
-                        {(() => {
-                          const dept = departments.find((d) => d.id === team.department_id);
-                          return dept ? `${dept.name} · ` : "";
-                        })()}
-                        {memberCountByTeam.get(team.id) ?? 0} member
-                        {(memberCountByTeam.get(team.id) ?? 0) === 1 ? "" : "s"}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="flex items-center gap-2">
-                        <Label className="text-muted-foreground text-xs">Department</Label>
-                        <select
-                          aria-label={`Department for ${team.name}`}
-                          defaultValue={team.department_id}
-                          className="border-input bg-background text-foreground h-8 min-w-[180px] rounded-lg border px-2 text-sm"
-                          disabled={!canManage || busy === `move-team:${team.id}`}
-                          onChange={(e) => void moveTeamDepartment(team.id, e.target.value)}
-                        >
-                          {departments.map((department) => (
-                            <option key={department.id} value={department.id}>
-                              {department.name}
-                            </option>
-                          ))}
-                        </select>
-                        {busy === `move-team:${team.id}` ? (
-                          <Loader2Icon className="text-muted-foreground size-4 animate-spin" />
-                        ) : null}
+                teams.map((team) => {
+                  const dept = departments.find((d) => d.id === team.department_id);
+                  const memberCount = memberCountByTeam.get(team.id) ?? 0;
+                  const lead = teamLeads.find((l) => l.employeeId === team.manager_employee_id);
+                  return (
+                    <div
+                      key={team.id}
+                      className="bg-card border-border/60 rounded-xl border p-4 shadow-sm"
+                    >
+                      {/* Header row */}
+                      <div className="mb-3 flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-semibold leading-tight">{team.name}</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            {dept && (
+                              <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium">
+                                {dept.name}
+                              </span>
+                            )}
+                            <span className="text-muted-foreground text-xs">
+                              {memberCount} member{memberCount === 1 ? "" : "s"}
+                            </span>
+                            {lead && (
+                              <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full px-2 py-0.5 text-xs font-medium">
+                                Lead: {lead.name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {canManage && (
+                          <div className="flex shrink-0 items-center gap-1">
+                            <Button
+                              type="button"
+                              size="icon-sm"
+                              variant="ghost"
+                              disabled={busy === `rename:${team.id}`}
+                              onClick={() => void rename(team.id, team.name)}
+                              aria-label={`Rename ${team.name}`}
+                              title="Rename team"
+                            >
+                              {busy === `rename:${team.id}` ? (
+                                <Loader2Icon className="size-3.5 animate-spin" />
+                              ) : (
+                                <PencilIcon className="size-3.5" />
+                              )}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon-sm"
+                              variant="ghost"
+                              disabled={busy === `delete:${team.id}`}
+                              onClick={() => void remove(team.id, team.name)}
+                              className="text-destructive hover:text-destructive"
+                              aria-label={`Delete ${team.name}`}
+                              title="Delete team"
+                            >
+                              {busy === `delete:${team.id}` ? (
+                                <Loader2Icon className="size-3.5 animate-spin" />
+                              ) : (
+                                <Trash2Icon className="size-3.5" />
+                              )}
+                            </Button>
+                          </div>
+                        )}
                       </div>
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="outline"
-                        disabled={!canManage || busy === `rename:${team.id}`}
-                        onClick={() => void rename(team.id, team.name)}
-                        aria-label={`Rename ${team.name}`}
-                        title="Rename team"
-                      >
-                        {busy === `rename:${team.id}` ? (
-                          <Loader2Icon className="size-4 animate-spin" />
-                        ) : (
-                          <PencilIcon className="size-4" />
-                        )}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="outline"
-                        disabled={!canManage || busy === `delete:${team.id}`}
-                        onClick={() => void remove(team.id, team.name)}
-                        className="text-destructive hover:text-destructive"
-                        aria-label={`Delete ${team.name}`}
-                        title="Delete team"
-                      >
-                        {busy === `delete:${team.id}` ? (
-                          <Loader2Icon className="size-4 animate-spin" />
-                        ) : (
-                          <Trash2Icon className="size-4" />
-                        )}
-                      </Button>
+                      {/* Controls row */}
+                      {canManage && (
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div className="grid gap-1">
+                            <Label className="text-muted-foreground text-xs">Department</Label>
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                aria-label={`Department for ${team.name}`}
+                                defaultValue={team.department_id}
+                                className="border-input bg-background text-foreground h-8 w-full rounded-lg border px-2 text-sm"
+                                disabled={busy === `move-team:${team.id}`}
+                                onChange={(e) => void moveTeamDepartment(team.id, e.target.value)}
+                              >
+                                {departments.map((d) => (
+                                  <option key={d.id} value={d.id}>{d.name}</option>
+                                ))}
+                              </select>
+                              {busy === `move-team:${team.id}` && (
+                                <Loader2Icon className="text-muted-foreground size-4 shrink-0 animate-spin" />
+                              )}
+                            </div>
+                          </div>
+                          <div className="grid gap-1">
+                            <Label className="text-muted-foreground text-xs">Team Lead</Label>
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                aria-label={`Team lead for ${team.name}`}
+                                value={team.manager_employee_id ?? ""}
+                                className="border-input bg-background text-foreground h-8 w-full rounded-lg border px-2 text-sm"
+                                disabled={busy === `manager:${team.id}`}
+                                onChange={(e) => void setTeamManager(team.id, e.target.value || null)}
+                              >
+                                <option value="">No lead assigned</option>
+                                {teamLeads.map((l) => (
+                                  <option key={l.employeeId} value={l.employeeId}>
+                                    {l.name} ({l.role})
+                                  </option>
+                                ))}
+                              </select>
+                              {busy === `manager:${team.id}` && (
+                                <Loader2Icon className="text-muted-foreground size-4 shrink-0 animate-spin" />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </CardContent>
@@ -454,63 +535,74 @@ export function TeamsManager({
                   Create your first department to group employees by function.
                 </p>
               ) : (
-                departments.map((department) => (
-                  <div
-                    key={department.id}
-                    className="bg-muted/25 border-border/60 space-y-3 rounded-xl border px-3 py-3"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-medium">{department.name}</p>
-                        <p className="text-muted-foreground text-xs">
-                          {memberCountByDepartment.get(department.id) ?? 0} member
-                          {(memberCountByDepartment.get(department.id) ?? 0) === 1 ? "" : "s"}
-                        </p>
+                departments.map((department) => {
+                  const memberCount = memberCountByDepartment.get(department.id) ?? 0;
+                  const teamCount = teams.filter((t) => t.department_id === department.id).length;
+                  return (
+                    <div
+                      key={department.id}
+                      className="bg-card border-border/60 rounded-xl border p-4 shadow-sm"
+                    >
+                      <div className="mb-3 flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-semibold leading-tight">{department.name}</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <span className="text-muted-foreground text-xs">
+                              {memberCount} member{memberCount === 1 ? "" : "s"}
+                            </span>
+                            <span className="text-muted-foreground text-xs">·</span>
+                            <span className="text-muted-foreground text-xs">
+                              {teamCount} team{teamCount === 1 ? "" : "s"}
+                            </span>
+                          </div>
+                        </div>
+                        {canManage && (
+                          <div className="flex shrink-0 items-center gap-1">
+                            <Button
+                              type="button"
+                              size="icon-sm"
+                              variant="ghost"
+                              disabled={busy === `rename-department:${department.id}`}
+                              onClick={() => void renameDept(department.id, department.name)}
+                              aria-label={`Rename ${department.name}`}
+                              title="Rename department"
+                            >
+                              {busy === `rename-department:${department.id}` ? (
+                                <Loader2Icon className="size-3.5 animate-spin" />
+                              ) : (
+                                <PencilIcon className="size-3.5" />
+                              )}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon-sm"
+                              variant="ghost"
+                              disabled={busy === `delete-department:${department.id}`}
+                              onClick={() => void removeDept(department.id, department.name)}
+                              className="text-destructive hover:text-destructive"
+                              aria-label={`Delete ${department.name}`}
+                              title="Delete department"
+                            >
+                              {busy === `delete-department:${department.id}` ? (
+                                <Loader2Icon className="size-3.5 animate-spin" />
+                              ) : (
+                                <Trash2Icon className="size-3.5" />
+                              )}
+                            </Button>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          type="button"
-                          size="icon-sm"
-                          variant="outline"
-                          disabled={!canManage || busy === `rename-department:${department.id}`}
-                          onClick={() => void renameDept(department.id, department.name)}
-                          aria-label={`Rename ${department.name}`}
-                          title="Rename department"
-                        >
-                          {busy === `rename-department:${department.id}` ? (
-                            <Loader2Icon className="size-4 animate-spin" />
-                          ) : (
-                            <PencilIcon className="size-4" />
-                          )}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon-sm"
-                          variant="outline"
-                          disabled={!canManage || busy === `delete-department:${department.id}`}
-                          onClick={() => void removeDept(department.id, department.name)}
-                          className="text-destructive hover:text-destructive"
-                          aria-label={`Delete ${department.name}`}
-                          title="Delete department"
-                        >
-                          {busy === `delete-department:${department.id}` ? (
-                            <Loader2Icon className="size-4 animate-spin" />
-                          ) : (
-                            <Trash2Icon className="size-4" />
-                          )}
-                        </Button>
-                      </div>
+                      <DepartmentCycleEditor
+                        department={department}
+                        disabled={!canManage}
+                        busy={busy === `save-cycle:${department.id}`}
+                        onSave={(cadence, month) =>
+                          void saveDepartmentCycle(department.id, cadence, month)
+                        }
+                      />
                     </div>
-                    <DepartmentCycleEditor
-                      department={department}
-                      disabled={!canManage}
-                      busy={busy === `save-cycle:${department.id}`}
-                      onSave={(cadence, month) =>
-                        void saveDepartmentCycle(department.id, cadence, month)
-                      }
-                    />
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </CardContent>

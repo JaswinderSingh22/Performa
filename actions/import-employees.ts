@@ -27,7 +27,6 @@ const importEmployeeRowSchema = z.object({
     .trim()
     .optional()
     .transform((v) => (v && v.length > 0 ? v : undefined)),
-  reporting_to_employee_code: z.string().trim().optional().default(""),
 });
 
 const importEmployeesSchema = z.object({
@@ -195,20 +194,6 @@ export async function importEmployeesFromCsv(
             isActiveRaw === "resigned"
           );
 
-    const reportingEmployeeCode =
-      row.reporting_to_employee_code?.trim() ?? "";
-    const reportingToEmployeeId = reportingEmployeeCode
-      ? (existingCodeToId.get(reportingEmployeeCode) ?? null)
-      : null;
-    if (reportingEmployeeCode && !reportingToEmployeeId) {
-      errors.push({
-        rowNumber: row.rowNumber,
-        email,
-        error: `Reporting manager (Employee ID ${reportingEmployeeCode}) is not in this workspace yet.`,
-      });
-      continue;
-    }
-
     const { data: inserted, error: insErr } = await access.supabase
       .from("employees")
       .insert({
@@ -221,7 +206,6 @@ export async function importEmployeesFromCsv(
         department: row.department?.trim() ?? "",
         team_name: row.team_name?.trim() ?? "",
         join_date: row.join_date ?? null,
-        reporting_to_employee_id: reportingToEmployeeId,
       })
       .select("id, email, employee_code")
       .single();

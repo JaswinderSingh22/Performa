@@ -14,6 +14,7 @@ import {
   employeeTeamAssignmentSchema,
   teamCreateSchema,
   teamDeleteSchema,
+  teamManagerAssignmentSchema,
   teamRenameSchema,
 } from "@/validators/teams";
 
@@ -41,11 +42,12 @@ async function ensureAdminRole(): Promise<
     return { ok: false, error: "You must be signed in." };
   }
   const { data: profile } = await access.supabase
-    .from("users")
+    .from("workspace_members")
     .select("role")
-    .eq("id", user.id)
+    .eq("org_id", access.orgId)
+    .eq("user_id", user.id)
     .maybeSingle();
-  if (profile?.role !== "admin") {
+  if (profile?.role !== "admin" && profile?.role !== "hr") {
     return { ok: false, error: "Only admins can manage teams." };
   }
   return { ok: true, access, userId: user.id };
@@ -432,6 +434,25 @@ export async function assignEmployeeDepartment(
     .eq("org_id", access.orgId);
   if (updErr) return { ok: false, error: updErr.message };
 
+  revalidateTeamSurfaces();
+  return { ok: true };
+}
+
+export async function assignTeamManager(input: unknown): Promise<TeamActionResult> {
+  const parsed = teamManagerAssignmentSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Invalid request." };
+  const admin = await ensureAdminRole();
+  if (!admin.ok) return admin;
+  const access = admin.access;
+  if (!access) return { ok: false, error: "Workspace not found." };
+
+  const { error } = await access.supabase
+    .from("teams")
+    .update({ manager_employee_id: parsed.data.managerEmployeeId })
+    .eq("id", parsed.data.teamId)
+    .eq("org_id", access.orgId);
+
+  if (error) return { ok: false, error: error.message };
   revalidateTeamSurfaces();
   return { ok: true };
 }

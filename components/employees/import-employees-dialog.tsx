@@ -27,7 +27,6 @@ type ParsedRow = {
   department?: string;
   team_name?: string;
   join_date?: string;
-  reporting_to_employee_code?: string;
 };
 
 type ToastState =
@@ -47,17 +46,6 @@ const HEADER_ALIASES: Record<keyof Omit<ParsedRow, "rowNumber">, string[]> = {
   department: ["department", "dept", "function"],
   team_name: ["team_name", "team", "teamname"],
   join_date: ["join_date", "joining_date", "joindate", "joiningdate"],
-  reporting_to_employee_code: [
-    "reporting_to_employee_code",
-    "reporting_to_employee_id",
-    "reporting_to",
-    "reports_to",
-    "manager_employee_id",
-    "manager_employee_code",
-    "manager_emp_id",
-    "manager_id",
-    "manager",
-  ],
 };
 
 function pickValue(
@@ -104,8 +92,6 @@ function parseCsvToRows(text: string): {
     const department = pickValue(raw, HEADER_ALIASES.department) ?? "";
     const team_name = pickValue(raw, HEADER_ALIASES.team_name) ?? "";
     const join_date = pickValue(raw, HEADER_ALIASES.join_date) ?? "";
-    const reporting_to_employee_code =
-      pickValue(raw, HEADER_ALIASES.reporting_to_employee_code) ?? "";
 
     rows.push({
       rowNumber,
@@ -117,7 +103,6 @@ function parseCsvToRows(text: string): {
       department,
       team_name,
       join_date,
-      reporting_to_employee_code,
     });
   }
 
@@ -220,7 +205,6 @@ export function ImportEmployeesDialog({
           department: r.department ?? "",
           team_name: r.team_name ?? "",
           join_date: r.join_date?.trim() ? r.join_date.trim() : undefined,
-          reporting_to_employee_code: r.reporting_to_employee_code ?? "",
         })),
       };
       const res = await importEmployeesFromCsv(payload);
@@ -325,7 +309,6 @@ export function ImportEmployeesDialog({
               <span className="font-medium">department</span> (optional),{" "}
               <span className="font-medium">team</span> (optional),{" "}
               <span className="font-medium">join_date</span> (optional, YYYY-MM-DD),{" "}
-              <span className="font-medium">reporting_to</span> (optional manager Employee ID),{" "}
               <span className="font-medium">status</span> (optional: active/inactive).
             </DialogDescription>
           </DialogHeader>

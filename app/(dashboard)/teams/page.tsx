@@ -10,6 +10,7 @@ type TeamRow = {
   org_id: string;
   name: string;
   department_id: string;
+  manager_employee_id: string | null;
   created_at: string;
 };
 
@@ -30,7 +31,7 @@ export default async function TeamsPage(): Promise<ReactElement | null> {
     data: { user },
   } = await access.supabase.auth.getUser();
 
-  const [teamsRes, departmentsRes, employeesRes, profileRes] = await Promise.all([
+  const [teamsRes, departmentsRes, employeesRes, profileRes, teamLeadsRes] = await Promise.all([
     access.supabase
       .from("teams")
       .select("*")
@@ -44,13 +45,24 @@ export default async function TeamsPage(): Promise<ReactElement | null> {
     access.supabase
       .from("employees")
       .select(
-        "id, name, email, role, employee_code, reporting_to_employee_id, is_active, team_name, department",
+        "id, name, email, role, employee_code, is_active, team_name, department",
       )
       .eq("org_id", access.orgId)
       .order("name", { ascending: true }),
     user
-      ? access.supabase.from("users").select("role").eq("id", user.id).maybeSingle()
+      ? access.supabase
+          .from("workspace_members")
+          .select("role")
+          .eq("org_id", access.orgId)
+          .eq("user_id", user.id)
+          .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
+    // Workspace members who have an employee record — eligible as team leads.
+    access.supabase
+      .from("workspace_members")
+      .select("employee_id, role")
+      .eq("org_id", access.orgId)
+      .not("employee_id", "is", null),
   ]);
 
   if (teamsRes.error) {
@@ -65,19 +77,32 @@ export default async function TeamsPage(): Promise<ReactElement | null> {
 
   const teams = (teamsRes.data ?? []) as TeamRow[];
   const departments = (departmentsRes.data ?? []) as DepartmentRow[];
-  const employees = (employeesRes.data ?? []) as Pick<
+  const allEmployees = (employeesRes.data ?? []) as Pick<
     EmployeeRow,
     | "id"
     | "name"
     | "email"
     | "role"
     | "employee_code"
-    | "reporting_to_employee_id"
     | "is_active"
     | "team_name"
     | "department"
   >[];
-  const canManage = profileRes.data?.role === "admin";
+  const canManage = profileRes.data?.role === "admin" || profileRes.data?.role === "hr";
+
+  // Build team lead options: workspace members linked to an employee record.
+  const roleLabel: Record<string, string> = { admin: "Admin", hr: "HR", manager: "Manager", tl: "TL" };
+  const employeeById = new Map(allEmployees.map((e) => [e.id, e]));
+  const teamLeads = (teamLeadsRes.data ?? [])
+    .filter((m) => m.employee_id)
+    .map((m) => {
+      const emp = employeeById.get(m.employee_id as string);
+      return emp
+        ? { employeeId: emp.id, name: emp.name, role: roleLabel[m.role as string] ?? m.role as string }
+        : null;
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <>
@@ -89,7 +114,8 @@ export default async function TeamsPage(): Promise<ReactElement | null> {
         <TeamsManager
           teams={teams}
           departments={departments}
-          employees={employees}
+          employees={allEmployees}
+          teamLeads={teamLeads}
           canManage={canManage}
         />
       </main>

@@ -34,7 +34,7 @@ export default async function EmployeeInsightsPage({
     achievementsRes,
     reviewsRes,
     notesRes,
-    employeeIdOptionsRes,
+    accessRes,
   ] =
     await Promise.all([
       access.supabase
@@ -86,11 +86,11 @@ export default async function EmployeeInsightsPage({
         .eq("org_id", access.orgId)
         .order("created_at", { ascending: false }),
       access.supabase
-        .from("employees")
-        .select("id, employee_code, name")
+        .from("workspace_members")
+        .select("role, invited_at")
         .eq("org_id", access.orgId)
-        .order("employee_code", { ascending: true })
-        .limit(20000),
+        .eq("employee_id", id)
+        .maybeSingle(),
     ]);
 
   const { data: employee, error: employeeError } = employeeRes;
@@ -110,15 +110,6 @@ export default async function EmployeeInsightsPage({
       d.name.trim().toLowerCase() === (employeeRow.department?.trim().toLowerCase() ?? ""),
   );
 
-  const employeeIdOptions = (employeeIdOptionsRes.data ?? []) as {
-    id: string;
-    employee_code: string;
-    name: string;
-  }[];
-  const reportingTo = employeeRow.reporting_to_employee_id
-    ? (employeeIdOptions.find((e) => e.id === employeeRow.reporting_to_employee_id) ??
-      null)
-    : null;
 
   return (
     <>
@@ -164,14 +155,9 @@ export default async function EmployeeInsightsPage({
               departments={
                 (departmentsRes.data ?? []) as { id: string; name: string }[]
               }
-              employeeIdOptions={
-                employeeIdOptions.map((e) => ({
-                  employee_code: e.employee_code,
-                  name: e.name,
-                }))
-              }
-              currentReportingToEmployeeCode={reportingTo?.employee_code ?? null}
               readOnly={locked}
+              accessRole={(accessRes.data?.role as string | null) ?? null}
+              accessInvitedAt={(accessRes.data?.invited_at as string | null) ?? null}
             />
           </div>
         }
@@ -179,11 +165,6 @@ export default async function EmployeeInsightsPage({
       <main className="flex-1 overflow-x-auto p-6 pb-14">
         <EmployeeInsightsView
           employee={employeeRow}
-          reportingTo={
-            reportingTo
-              ? { employee_code: reportingTo.employee_code, name: reportingTo.name }
-              : null
-          }
           achievements={(achievementsRes.data ?? []) as AchievementRow[]}
           notes={(notesRes.data ?? []) as EmployeeNoteRow[]}
           reviews={(reviewsRes.data ?? []) as ReviewWithDimensions[]}

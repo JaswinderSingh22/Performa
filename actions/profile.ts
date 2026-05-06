@@ -31,7 +31,7 @@ export async function updateProfile(
   }
 
   const { error } = await supabase
-    .from("users")
+    .from("user_profiles")
     .update({
       full_name: parsed.data.fullName.trim(),
       job_title: parsed.data.jobTitle.trim(),
@@ -39,7 +39,7 @@ export async function updateProfile(
       bio: parsed.data.bio.trim(),
       years_experience: parsed.data.yearsExperience,
     })
-    .eq("id", user.id);
+    .eq("user_id", user.id);
 
   if (error) {
     return { ok: false as const, error: error.message };

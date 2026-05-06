@@ -28,10 +28,11 @@ export type HierarchyEmployeeRow = {
   email: string;
   role?: string | null;
   employee_code?: string | null;
-  reporting_to_employee_id?: string | null;
   is_active?: boolean | null;
   team_name?: string | null;
   department?: string | null;
+  /** True when this employee is the assigned lead of their team. */
+  is_lead?: boolean;
 };
 
 type Mode = "tree" | "list" | "canvas";
@@ -41,7 +42,7 @@ type Node = {
   name: string;
   employee_code: string;
   is_active: boolean;
-  reporting_to_employee_id: string | null;
+  is_lead: boolean;
   children: string[];
 };
 
@@ -53,21 +54,10 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-function pickLeaderId(rows: HierarchyEmployeeRow[]): string | null {
-  const byPriority = (needle: "ceo" | "cto") => {
-    for (const r of rows) {
-      const role = norm(r.role);
-      if (!role) continue;
-      if (role.includes(needle)) return r.id;
-    }
-    return null;
-  };
-  return byPriority("ceo") ?? byPriority("cto") ?? null;
-}
-
 function buildIndex(rows: HierarchyEmployeeRow[]): {
   nodes: Map<string, Node>;
   roots: string[];
+  parentById: Map<string, string>;
 } {
   const nodes = new Map<string, Node>();
   for (const r of rows) {
@@ -76,66 +66,65 @@ function buildIndex(rows: HierarchyEmployeeRow[]): {
       name: r.name ?? "—",
       employee_code: (r.employee_code ?? "").trim(),
       is_active: r.is_active !== false,
-      reporting_to_employee_id: r.reporting_to_employee_id ?? null,
+      is_lead: r.is_lead === true,
       children: [],
     });
   }
-  for (const n of nodes.values()) {
-    const managerId = n.reporting_to_employee_id;
-    if (!managerId) continue;
-    const parent = nodes.get(managerId);
-    if (!parent) continue;
-    parent.children.push(n.id);
-  }
-  for (const n of nodes.values()) {
-    n.children.sort((a, b) => {
-      const an = nodes.get(a)?.name ?? "";
-      const bn = nodes.get(b)?.name ?? "";
-      return an.localeCompare(bn, undefined, { sensitivity: "base" });
-    });
-  }
-  const roots = [...nodes.values()]
-    .filter((n) => !n.reporting_to_employee_id || !nodes.has(n.reporting_to_employee_id))
-    .map((n) => n.id)
-    .sort((a, b) => (nodes.get(a)?.name ?? "").localeCompare(nodes.get(b)?.name ?? ""));
 
-  // If we have multiple top-level nodes, pick a visible single root.
-  // 1) If CEO/CTO exists and is a root, make everyone else report to them (for display only).
-  // 2) Otherwise, create a synthetic "Leadership" root so the chart reads as one org.
-  if (roots.length > 1) {
-    const leaderId = pickLeaderId(rows);
-    if (leaderId && roots.includes(leaderId)) {
-      const leader = nodes.get(leaderId);
-      if (leader) {
-        for (const r of roots) {
-          if (r === leaderId) continue;
-          const child = nodes.get(r);
-          if (!child) continue;
-          child.reporting_to_employee_id = leaderId;
-          leader.children.push(r);
-        }
-        leader.children = Array.from(new Set(leader.children)).sort((a, b) => {
-          const an = nodes.get(a)?.name ?? "";
-          const bn = nodes.get(b)?.name ?? "";
-          return an.localeCompare(bn, undefined, { sensitivity: "base" });
-        });
-        return { nodes, roots: [leaderId] };
-      }
+  // Group by team; make the lead the parent of all other team members.
+  const teamLeadId = new Map<string, string>(); // teamName → lead's employee id
+  const teamMemberIds = new Map<string, string[]>(); // teamName → all member ids
+  for (const r of rows) {
+    const team = r.team_name?.trim();
+    if (!team) continue;
+    if (!teamMemberIds.has(team)) teamMemberIds.set(team, []);
+    teamMemberIds.get(team)!.push(r.id);
+    if (r.is_lead) teamLeadId.set(team, r.id);
+  }
+
+  const parentById = new Map<string, string>();
+  for (const [team, memberIds] of teamMemberIds) {
+    const leadId = teamLeadId.get(team);
+    if (!leadId) continue;
+    const leadNode = nodes.get(leadId);
+    if (!leadNode) continue;
+    for (const memberId of memberIds) {
+      if (memberId === leadId) continue;
+      leadNode.children.push(memberId);
+      parentById.set(memberId, leadId);
     }
+    leadNode.children.sort((a, b) =>
+      (nodes.get(a)?.name ?? "").localeCompare(nodes.get(b)?.name ?? "", undefined, { sensitivity: "base" }),
+    );
+  }
 
+  // Roots = nodes that are not a child of anyone.
+  const allChildren = new Set<string>();
+  for (const n of nodes.values()) {
+    for (const c of n.children) allChildren.add(c);
+  }
+  const roots = [...nodes.keys()]
+    .filter((id) => !allChildren.has(id))
+    .sort((a, b) =>
+      (nodes.get(a)?.name ?? "").localeCompare(nodes.get(b)?.name ?? "", undefined, { sensitivity: "base" }),
+    );
+
+  // Single virtual root if there are multiple top-level nodes.
+  if (roots.length > 1) {
     const virtualId = "__org_root__";
     nodes.set(virtualId, {
       id: virtualId,
-      name: "Leadership",
-      employee_code: "ORG",
+      name: "Organisation",
+      employee_code: "",
       is_active: true,
-      reporting_to_employee_id: null,
+      is_lead: false,
       children: roots,
     });
-    return { nodes, roots: [virtualId] };
+    for (const r of roots) parentById.set(r, virtualId);
+    return { nodes, roots: [virtualId], parentById };
   }
 
-  return { nodes, roots };
+  return { nodes, roots, parentById };
 }
 
 function label(node: Node): string {
@@ -203,9 +192,10 @@ function layoutTree(nodes: Map<string, Node>, roots: string[]): {
 function useAutoExpandForQuery(args: {
   nodes: Map<string, Node>;
   roots: string[];
+  parentById: Map<string, string>;
   query: string;
 }): { expanded: Set<string>; matches: Set<string> } {
-  const { nodes, roots, query } = args;
+  const { nodes, roots, parentById, query } = args;
   return React.useMemo(() => {
     const q = norm(query);
     if (!q) return { expanded: new Set<string>(), matches: new Set<string>() };
@@ -220,13 +210,13 @@ function useAutoExpandForQuery(args: {
     const visited = new Set<string>();
 
     const markAncestors = (id: string) => {
-      let cur = nodes.get(id);
-      while (cur?.reporting_to_employee_id) {
-        const parentId = cur.reporting_to_employee_id;
-        if (visited.has(parentId)) break;
+      let cur: string | undefined = id;
+      while (cur) {
+        const parentId = parentById.get(cur);
+        if (!parentId || visited.has(parentId)) break;
         visited.add(parentId);
         expanded.add(parentId);
-        cur = nodes.get(parentId);
+        cur = parentId;
       }
     };
 
@@ -238,7 +228,7 @@ function useAutoExpandForQuery(args: {
     // Expand roots so users see the entry points.
     for (const r of roots) expanded.add(r);
     return { expanded, matches };
-  }, [nodes, roots, query]);
+  }, [nodes, roots, parentById, query]);
 }
 
 function NodeRow({
@@ -298,6 +288,11 @@ function NodeRow({
             <span className="text-muted-foreground text-xs tabular-nums">
               · {node.employee_code}
             </span>
+          ) : null}
+          {node.is_lead ? (
+            <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-0 font-normal">
+              Lead
+            </Badge>
           ) : null}
           {!node.is_active ? (
             <Badge variant="outline" className="text-muted-foreground font-normal">
@@ -381,6 +376,9 @@ function TreeBox({
       <span className="text-muted-foreground truncate text-xs tabular-nums">
         {node.employee_code ? node.employee_code : "—"}
       </span>
+      {node.is_lead ? (
+        <span className="text-emerald-500 mt-0.5 text-[11px] font-semibold">Lead</span>
+      ) : null}
       {!node.is_active ? (
         <span className="text-muted-foreground mt-1 text-[11px] font-semibold">
           Inactive
@@ -731,13 +729,14 @@ export function OrgHierarchyPanel({
   defaultMode?: Mode;
 }): React.ReactElement {
   const reduced = useReducedMotion() === true;
-  const { nodes, roots } = React.useMemo(() => buildIndex(employees), [employees]);
+  const { nodes, roots, parentById } = React.useMemo(() => buildIndex(employees), [employees]);
   const [mode, setMode] = React.useState<Mode>(defaultMode);
   const [query, setQuery] = React.useState("");
 
   const { expanded: autoExpanded, matches } = useAutoExpandForQuery({
     nodes,
     roots,
+    parentById,
     query,
   });
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set(roots));

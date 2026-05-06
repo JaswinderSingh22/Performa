@@ -35,12 +35,13 @@ export async function renameOrganization(
   }
 
   const { data: profile } = await access.supabase
-    .from("users")
+    .from("workspace_members")
     .select("role")
-    .eq("id", user.id)
+    .eq("org_id", access.orgId)
+    .eq("user_id", user.id)
     .maybeSingle();
 
-  if (profile?.role !== "admin") {
+  if (profile?.role !== "admin" && profile?.role !== "hr") {
     return {
       ok: false,
       error: "Only workspace admins can change the organization name.",
@@ -85,12 +86,13 @@ export async function updateOrganizationReviewCycle(
   }
 
   const { data: profile } = await access.supabase
-    .from("users")
+    .from("workspace_members")
     .select("role")
-    .eq("id", user.id)
+    .eq("org_id", access.orgId)
+    .eq("user_id", user.id)
     .maybeSingle();
 
-  if (profile?.role !== "admin") {
+  if (profile?.role !== "admin" && profile?.role !== "hr") {
     return {
       ok: false,
       error: "Only workspace admins can change review cycle settings.",

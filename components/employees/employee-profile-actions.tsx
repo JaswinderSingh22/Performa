@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { Loader2Icon, PencilIcon, Trash2Icon } from "lucide-react";
 
 import { deleteEmployee, updateEmployee } from "@/actions/employees";
+import { inviteEmployeeToWorkspace, setEmployeeWorkspaceAccess } from "@/actions/employee-access";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,20 +21,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { EmployeeRow } from "@/types/database";
 import {
-  EmployeeIdCombobox,
-  type EmployeeIdOption,
-} from "@/components/employees/employee-id-combobox";
-import {
   employeeUpdateSchema,
   type EmployeeUpdateFormValues,
 } from "@/validators/employee";
 
 type TeamOption = { id: string; name: string };
+type AccessSelection = "none" | "admin" | "hr" | "manager" | "tl";
 
-function buildUpdateDefaults(
-  employee: EmployeeRow,
-  reportingToEmployeeCode: string,
-): EmployeeUpdateFormValues {
+function normalizeAccessSelection(value: string | null | undefined): AccessSelection {
+  if (value === "admin" || value === "hr" || value === "manager" || value === "tl") {
+    return value;
+  }
+  return "none";
+}
+
+function buildUpdateDefaults(employee: EmployeeRow): EmployeeUpdateFormValues {
   return {
     employeeId: employee.id,
     name: employee.name,
@@ -46,7 +48,6 @@ function buildUpdateDefaults(
       employee.join_date && employee.join_date !== ""
         ? employee.join_date
         : undefined,
-    reporting_to_employee_code: reportingToEmployeeCode,
     is_active: employee.is_active !== false,
   };
 }
@@ -55,32 +56,38 @@ export function EmployeeProfileActions({
   employee,
   teams,
   departments,
-  employeeIdOptions,
-  currentReportingToEmployeeCode,
   readOnly = false,
+  accessRole,
+  accessInvitedAt,
 }: {
   employee: EmployeeRow;
   teams: TeamOption[];
   departments: TeamOption[];
-  employeeIdOptions: EmployeeIdOption[];
-  currentReportingToEmployeeCode?: string | null;
   readOnly?: boolean;
+  accessRole?: string | null;
+  accessInvitedAt?: string | null;
 }): React.ReactElement {
   const router = useRouter();
   const [editOpen, setEditOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
-  const initialReportingTo = (currentReportingToEmployeeCode ?? "").trim();
+  const [accessBusy, setAccessBusy] = React.useState(false);
+  const [accessError, setAccessError] = React.useState<string | null>(null);
+  const [accessSelection, setAccessSelection] = React.useState<AccessSelection>(
+    normalizeAccessSelection(accessRole),
+  );
 
   const form = useForm<EmployeeUpdateFormValues>({
     resolver: zodResolver(employeeUpdateSchema),
-    defaultValues: buildUpdateDefaults(employee, initialReportingTo),
+    defaultValues: buildUpdateDefaults(employee),
   });
 
   React.useEffect(() => {
     if (!editOpen) return;
-    form.reset(buildUpdateDefaults(employee, initialReportingTo));
-  }, [employee, editOpen, form, initialReportingTo]);
+    form.reset(buildUpdateDefaults(employee));
+    setAccessError(null);
+    setAccessSelection(normalizeAccessSelection(accessRole));
+  }, [accessRole, employee, editOpen, form]);
 
   const onSubmitEdit = form.handleSubmit(async (values) => {
     const result = await updateEmployee(values);
@@ -145,8 +152,8 @@ export function EmployeeProfileActions({
       </Button>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <form onSubmit={onSubmitEdit}>
+        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-hidden">
+          <form onSubmit={onSubmitEdit} className="flex max-h-[calc(85vh-2rem)] flex-col">
             <DialogHeader>
               <DialogTitle>Edit employee</DialogTitle>
               <DialogDescription>
@@ -155,10 +162,15 @@ export function EmployeeProfileActions({
               </DialogDescription>
             </DialogHeader>
             <input type="hidden" {...form.register("employeeId")} />
-            <div className="grid gap-4 py-4">
+            <div className="grid flex-1 gap-4 overflow-y-auto py-4 pr-1">
               {form.formState.errors.root?.message ? (
                 <p className="text-destructive text-sm" role="alert">
                   {form.formState.errors.root.message}
+                </p>
+              ) : null}
+              {accessError ? (
+                <p className="text-destructive text-sm" role="alert">
+                  {accessError}
                 </p>
               ) : null}
               <div className="grid gap-2">
@@ -194,7 +206,7 @@ export function EmployeeProfileActions({
               </div>
               <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
                 <div className="grid gap-2">
-                  <Label htmlFor="edit-emp-role">Role</Label>
+                  <Label htmlFor="edit-emp-role">Position</Label>
                   <Input id="edit-emp-role" {...form.register("role")} />
                 </div>
                 <div className="grid gap-2">
@@ -221,6 +233,85 @@ export function EmployeeProfileActions({
                       </option>
                     ))}
                   </select>
+                </div>
+              </div>
+              <div className="rounded-xl border border-border/70 bg-muted/10 p-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="edit-emp-access">Workspace access</Label>
+                    <select
+                      id="edit-emp-access"
+                      className="border-input bg-background text-foreground h-8 w-full rounded-lg border px-2.5 text-sm"
+                      value={accessSelection}
+                      disabled={readOnly || accessBusy}
+                      onChange={(e) =>
+                        setAccessSelection(
+                          e.target.value as "none" | "admin" | "hr" | "manager" | "tl",
+                        )
+                      }
+                    >
+                      <option value="none">No login access</option>
+                      <option value="tl">TL</option>
+                      <option value="manager">Manager</option>
+                      <option value="hr">HR</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    <p className="text-muted-foreground text-xs">
+                      {accessInvitedAt
+                        ? "Invite sent. You can resend it anytime."
+                        : "Invite required to enable login access."}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={readOnly || accessBusy || accessSelection === "none"}
+                      onClick={() => {
+                        setAccessError(null);
+                        setAccessBusy(true);
+                        void (async () => {
+                          const res = await inviteEmployeeToWorkspace({
+                            employeeId: employee.id,
+                            role: accessSelection === "none" ? "manager" : accessSelection,
+                          });
+                          setAccessBusy(false);
+                          if (!res.ok) {
+                            setAccessError(res.error);
+                            return;
+                          }
+                          router.refresh();
+                        })();
+                      }}
+                    >
+                      {accessInvitedAt ? "Resend invite" : "Send invite"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={readOnly || accessBusy}
+                      onClick={() => {
+                        setAccessError(null);
+                        setAccessBusy(true);
+                        void (async () => {
+                          const res = await setEmployeeWorkspaceAccess({
+                            employeeId: employee.id,
+                            role: accessSelection,
+                          });
+                          setAccessBusy(false);
+                          if (!res.ok) {
+                            setAccessError(res.error);
+                            return;
+                          }
+                          router.refresh();
+                        })();
+                      }}
+                    >
+                      Save access
+                    </Button>
+                  </div>
                 </div>
               </div>
               <div className="grid gap-2">
@@ -267,31 +358,8 @@ export function EmployeeProfileActions({
                   {...form.register("join_date")}
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-emp-reporting">
-                  Reporting to (manager Employee ID)
-                </Label>
-                <EmployeeIdCombobox
-                  value={form.watch("reporting_to_employee_code") ?? ""}
-                  onChange={(next) =>
-                    form.setValue("reporting_to_employee_code", next, {
-                      shouldDirty: true,
-                      shouldTouch: true,
-                    })
-                  }
-                  options={employeeIdOptions.filter(
-                    (o) =>
-                      o.employee_code?.trim() !==
-                      (employee?.employee_code ?? "").trim(),
-                  )}
-                  placeholder="Pick a manager…"
-                />
-                <p className="text-muted-foreground text-xs">
-                  Leave blank to clear. Manager must exist in this workspace.
-                </p>
-              </div>
             </div>
-            <DialogFooter className="gap-2">
+            <DialogFooter className="sticky bottom-0 mt-2 gap-2 border-t border-border/60 bg-background/80 pt-3 backdrop-blur">
               <Button
                 type="button"
                 variant="ghost"

@@ -22,15 +22,20 @@ type MemberRow = {
 };
 
 function roleLabel(r: UserRole): string {
-  return r === "admin" ? "Admin" : "Manager";
+  if (r === "admin") return "Admin";
+  if (r === "hr") return "HR";
+  if (r === "tl") return "TL";
+  return "Manager";
 }
 
 export function WorkspaceMembersCard({
+  workspaceId,
   members,
   createdByUserId,
   currentUserId,
   canManageRoles,
 }: {
+  workspaceId: string;
   members: MemberRow[];
   createdByUserId: string | null;
   currentUserId: string;
@@ -44,7 +49,7 @@ export function WorkspaceMembersCard({
     setError(null);
     setBusyId(userId);
     try {
-      const res = await updateWorkspaceMemberRole({ userId, role });
+      const res = await updateWorkspaceMemberRole({ orgId: workspaceId, userId, role });
       if (!res.ok) {
         setError(res.error);
         return;
@@ -129,7 +134,9 @@ export function WorkspaceMembersCard({
                       className="border-input bg-background focus-visible:border-ring text-foreground h-9 rounded-lg border px-2 text-xs shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35"
                     >
                       <option value="admin">Admin</option>
+                      <option value="hr">HR</option>
                       <option value="manager">Manager</option>
+                      <option value="tl">TL</option>
                     </select>
                   ) : (
                     <span className="text-muted-foreground text-sm">

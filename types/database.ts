@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "manager";
+export type UserRole = "admin" | "hr" | "manager" | "tl";
 export type ReviewStatus = "draft" | "published" | "archived";
 
 export type ReviewGenerationStrategy = "raw_period" | "stitched_summaries";
@@ -30,13 +30,26 @@ export interface UserProfileRow {
   created_at: string;
 }
 
+export interface UserProfileGlobalRow {
+  user_id: string;
+  full_name: string;
+  email: string | null;
+  created_at: string;
+}
+
+export interface WorkspaceMemberRow {
+  org_id: string;
+  user_id: string;
+  role: UserRole;
+  employee_id: string | null;
+  created_at: string;
+}
+
 export interface EmployeeRow {
   id: string;
   org_id: string;
   /** Company-facing employee identifier (not the UUID). */
   employee_code?: string | null;
-  /** Manager reference within same org. */
-  reporting_to_employee_id?: string | null;
   /** Resigned / inactive employees (kept for history). */
   is_active?: boolean | null;
   name: string;

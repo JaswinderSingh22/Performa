@@ -23,6 +23,7 @@ import { HelpDialog } from "@/components/help/help-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { easingOut } from "@/lib/motion-variants";
+import type { UserRole } from "@/types/database";
 
 const MotionLink = motion.create(Link);
 
@@ -169,7 +170,11 @@ function NavGroup({
   );
 }
 
-export function AppSidebar(): React.ReactElement {
+export function AppSidebar({
+  workspaceRole,
+}: {
+  workspaceRole: UserRole | null;
+}): React.ReactElement {
   const pathname = usePathname();
   const prefersReducedMotion = useReducedMotion() === true;
   const [collapsed, setCollapsed] = React.useState<boolean>(false);
@@ -198,6 +203,12 @@ export function AppSidebar(): React.ReactElement {
   // the hover-to-expand behavior would immediately re-expand it.
   // Add a small cooldown to make the collapse visible.
   const expanded = !collapsed || (hovering && Date.now() - lastToggleAtRef.current > 350);
+
+  const isAdminLike = workspaceRole === "admin" || workspaceRole === "hr";
+  const showOverview = isAdminLike;
+  const showAdmin = isAdminLike;
+  const showOrg = isAdminLike;
+  const showSettings = isAdminLike;
 
   return (
     <aside
@@ -273,33 +284,37 @@ export function AppSidebar(): React.ReactElement {
           expanded ? "p-3.5" : "px-2.5 pt-3.5",
         )}
       >
-        <NavGroup
-          title="Overview"
-          items={navOverview}
-          pathname={pathname}
-          delayFrom={0.02}
-          prefersReducedMotion={prefersReducedMotion}
-          expanded={expanded}
-        />
+        {showOverview ? (
+          <NavGroup
+            title="Overview"
+            items={navOverview}
+            pathname={pathname}
+            delayFrom={0.02}
+            prefersReducedMotion={prefersReducedMotion}
+            expanded={expanded}
+          />
+        ) : null}
         <NavGroup
           title="People"
-          items={navPeople}
+          items={showOrg ? navPeople : navPeople.filter((i) => i.href !== "/teams")}
           pathname={pathname}
           delayFrom={0.14}
           prefersReducedMotion={prefersReducedMotion}
           expanded={expanded}
         />
-        <NavGroup
-          title="Admin"
-          items={navAdmin}
-          pathname={pathname}
-          delayFrom={0.22}
-          prefersReducedMotion={prefersReducedMotion}
-          expanded={expanded}
-        />
+        {showAdmin ? (
+          <NavGroup
+            title="Admin"
+            items={navAdmin}
+            pathname={pathname}
+            delayFrom={0.22}
+            prefersReducedMotion={prefersReducedMotion}
+            expanded={expanded}
+          />
+        ) : null}
         <NavGroup
           title="Account"
-          items={navAccount}
+          items={showSettings ? navAccount : navAccount.filter((i) => i.href !== "/settings")}
           pathname={pathname}
           delayFrom={0.3}
           prefersReducedMotion={prefersReducedMotion}

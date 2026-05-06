@@ -101,7 +101,6 @@ function cutoffIsoForWindow(window: Exclude<OverallWindow, "all">): string {
 
 export function EmployeeInsightsView({
   employee,
-  reportingTo,
   achievements,
   notes,
   reviews,
@@ -111,7 +110,6 @@ export function EmployeeInsightsView({
   readOnly = false,
 }: {
   employee: EmployeeRow;
-  reportingTo?: { employee_code: string; name: string } | null;
   achievements: AchievementRow[];
   notes: EmployeeNoteRow[];
   reviews: ReviewWithDimensions[];
@@ -304,16 +302,6 @@ export function EmployeeInsightsView({
                     className="font-normal text-muted-foreground"
                   >
                     Inactive
-                  </Badge>
-                ) : null}
-                {reportingTo?.employee_code?.trim() ? (
-                  <Badge
-                    variant="outline"
-                    className="font-normal tabular-nums max-w-[320px] truncate"
-                    title={`Reporting to · ${reportingTo.employee_code.trim()} · ${reportingTo.name?.trim() ? reportingTo.name.trim() : "—"}`}
-                  >
-                    Mgr · {reportingTo.employee_code.trim()} ·{" "}
-                    {reportingTo.name?.trim() ? reportingTo.name.trim() : "—"}
                   </Badge>
                 ) : null}
                 {employee.role ? (

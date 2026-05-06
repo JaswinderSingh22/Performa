@@ -53,3 +53,8 @@ export const employeeDepartmentAssignmentSchema = z.object({
   employeeId: z.uuid(),
   departmentId: z.uuid().nullable(),
 });
+
+export const teamManagerAssignmentSchema = z.object({
+  teamId: z.uuid(),
+  managerEmployeeId: z.uuid().nullable(),
+});

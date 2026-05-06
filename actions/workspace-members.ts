@@ -8,8 +8,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 export type WorkspaceMemberRoleResult = { ok: true } | { ok: false; error: string };
 
 const updateRoleSchema = z.object({
+  orgId: z.string().uuid(),
   userId: z.string().uuid(),
-  role: z.enum(["admin", "manager"]),
+  role: z.enum(["admin", "hr", "manager", "tl"]),
 });
 
 export async function updateWorkspaceMemberRole(
@@ -30,6 +31,7 @@ export async function updateWorkspaceMemberRole(
   }
 
   const { error } = await supabase.rpc("set_workspace_member_role", {
+    p_org_id: parsed.data.orgId,
     p_user_id: parsed.data.userId,
     p_role: parsed.data.role,
   });

@@ -38,14 +38,13 @@ export function OnboardingForm({
     e.preventDefault();
     setError(null);
     const fd = new FormData(e.currentTarget);
-    const payload = {
-      organizationName: String(fd.get("organizationName") ?? "").trim(),
-      countryCode: String(fd.get("countryCode") ?? "").trim(),
-      fullName: String(fd.get("fullName") ?? "").trim(),
-    };
 
     startTransition(async () => {
-      const result = await completeOnboarding(payload);
+      const result = await completeOnboarding({
+        organizationName: String(fd.get("organizationName") ?? "").trim(),
+        countryCode: String(fd.get("countryCode") ?? "").trim(),
+        fullName: String(fd.get("fullName") ?? "").trim(),
+      });
       if (!result.ok) {
         setError(result.error);
         return;

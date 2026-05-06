@@ -28,7 +28,6 @@ export const employeeCreateSchema = z.object({
   department: z.string().trim(),
   team_name: z.string().trim(),
   join_date: optionalDateString,
-  reporting_to_employee_code: optionalTrimmedString,
   is_active: booleanFromForm.default(true),
 });
 

@@ -74,13 +74,31 @@ export async function updateSession(req: NextRequest): Promise<NextResponse> {
   } = await supabase.auth.getUser();
 
   let hasOrg = false;
+  let activeRole: string | null = null;
   if (user) {
-    const { data: profileRow } = await supabase
-      .from("users")
-      .select("org_id")
-      .eq("id", user.id)
-      .maybeSingle();
-    hasOrg = Boolean(profileRow?.org_id);
+    const { data: memberships } = await supabase
+      .from("workspace_members")
+      .select("org_id, role")
+      .eq("user_id", user.id);
+    const orgIds = (memberships ?? [])
+      .map((m) => m.org_id as string | null)
+      .filter((v): v is string => Boolean(v));
+    hasOrg = orgIds.length > 0;
+
+    const active = req.cookies.get("active_org_id")?.value ?? "";
+    const resolved = active && orgIds.includes(active) ? active : orgIds[0] ?? "";
+    if (resolved && resolved !== active) {
+      res.cookies.set("active_org_id", resolved, {
+        path: "/",
+        sameSite: "lax",
+        httpOnly: true,
+      });
+    }
+
+    if (resolved) {
+      const row = (memberships ?? []).find((m) => (m.org_id as string) === resolved);
+      activeRole = (row?.role as string | null) ?? null;
+    }
   }
 
   const isHome = pathname === "/";
@@ -116,6 +134,20 @@ export async function updateSession(req: NextRequest): Promise<NextResponse> {
     }
     if (user && !hasOrg) {
       return redirectPreservingCookies(req, res, "/onboarding");
+    }
+
+    // Role-based route gating (Phase 2).
+    // TL/Manager should not access admin/analytics surfaces.
+    if (user && activeRole && (activeRole === "manager" || activeRole === "tl")) {
+      const blocked =
+        pathname.startsWith("/dashboard") ||
+        pathname.startsWith("/billing") ||
+        pathname.startsWith("/usage") ||
+        pathname.startsWith("/settings") ||
+        pathname.startsWith("/teams");
+      if (blocked) {
+        return redirectPreservingCookies(req, res, "/employees");
+      }
     }
   }
 
