@@ -101,6 +101,7 @@ function cutoffIsoForWindow(window: Exclude<OverallWindow, "all">): string {
 
 export function EmployeeInsightsView({
   employee,
+  reportingTo,
   achievements,
   notes,
   reviews,
@@ -110,6 +111,7 @@ export function EmployeeInsightsView({
   readOnly = false,
 }: {
   employee: EmployeeRow;
+  reportingTo?: { employee_code: string; name: string } | null;
   achievements: AchievementRow[];
   notes: EmployeeNoteRow[];
   reviews: ReviewWithDimensions[];
@@ -287,6 +289,33 @@ export function EmployeeInsightsView({
                 {employee.email}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
+                {employee.employee_code?.trim() ? (
+                  <Badge className="border-primary/14 bg-primary/8 text-primary font-normal tabular-nums">
+                    ID · {employee.employee_code.trim()}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="font-normal">
+                    Employee ID missing
+                  </Badge>
+                )}
+                {employee.is_active === false ? (
+                  <Badge
+                    variant="outline"
+                    className="font-normal text-muted-foreground"
+                  >
+                    Inactive
+                  </Badge>
+                ) : null}
+                {reportingTo?.employee_code?.trim() ? (
+                  <Badge
+                    variant="outline"
+                    className="font-normal tabular-nums max-w-[320px] truncate"
+                    title={`Reporting to · ${reportingTo.employee_code.trim()} · ${reportingTo.name?.trim() ? reportingTo.name.trim() : "—"}`}
+                  >
+                    Mgr · {reportingTo.employee_code.trim()} ·{" "}
+                    {reportingTo.name?.trim() ? reportingTo.name.trim() : "—"}
+                  </Badge>
+                ) : null}
                 {employee.role ? (
                   <Badge variant="secondary" className="font-normal">
                     {employee.role}

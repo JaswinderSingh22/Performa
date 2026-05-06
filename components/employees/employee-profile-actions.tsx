@@ -20,17 +20,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { EmployeeRow } from "@/types/database";
 import {
+  EmployeeIdCombobox,
+  type EmployeeIdOption,
+} from "@/components/employees/employee-id-combobox";
+import {
   employeeUpdateSchema,
   type EmployeeUpdateFormValues,
 } from "@/validators/employee";
 
 type TeamOption = { id: string; name: string };
 
-function buildUpdateDefaults(employee: EmployeeRow): EmployeeUpdateFormValues {
+function buildUpdateDefaults(
+  employee: EmployeeRow,
+  reportingToEmployeeCode: string,
+): EmployeeUpdateFormValues {
   return {
     employeeId: employee.id,
     name: employee.name,
     email: employee.email,
+    employee_code: employee.employee_code ?? "",
     role: employee.role ?? "",
     department: employee.department ?? "",
     team_name: employee.team_name ?? "",
@@ -38,6 +46,8 @@ function buildUpdateDefaults(employee: EmployeeRow): EmployeeUpdateFormValues {
       employee.join_date && employee.join_date !== ""
         ? employee.join_date
         : undefined,
+    reporting_to_employee_code: reportingToEmployeeCode,
+    is_active: employee.is_active !== false,
   };
 }
 
@@ -45,27 +55,32 @@ export function EmployeeProfileActions({
   employee,
   teams,
   departments,
+  employeeIdOptions,
+  currentReportingToEmployeeCode,
   readOnly = false,
 }: {
   employee: EmployeeRow;
   teams: TeamOption[];
   departments: TeamOption[];
+  employeeIdOptions: EmployeeIdOption[];
+  currentReportingToEmployeeCode?: string | null;
   readOnly?: boolean;
 }): React.ReactElement {
   const router = useRouter();
   const [editOpen, setEditOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  const initialReportingTo = (currentReportingToEmployeeCode ?? "").trim();
 
   const form = useForm<EmployeeUpdateFormValues>({
     resolver: zodResolver(employeeUpdateSchema),
-    defaultValues: buildUpdateDefaults(employee),
+    defaultValues: buildUpdateDefaults(employee, initialReportingTo),
   });
 
   React.useEffect(() => {
     if (!editOpen) return;
-    form.reset(buildUpdateDefaults(employee));
-  }, [employee, editOpen, form]);
+    form.reset(buildUpdateDefaults(employee, initialReportingTo));
+  }, [employee, editOpen, form, initialReportingTo]);
 
   const onSubmitEdit = form.handleSubmit(async (values) => {
     const result = await updateEmployee(values);
@@ -130,7 +145,7 @@ export function EmployeeProfileActions({
       </Button>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <form onSubmit={onSubmitEdit}>
             <DialogHeader>
               <DialogTitle>Edit employee</DialogTitle>
@@ -146,6 +161,14 @@ export function EmployeeProfileActions({
                   {form.formState.errors.root.message}
                 </p>
               ) : null}
+              <div className="grid gap-2">
+                <Label htmlFor="edit-emp-code">Employee ID</Label>
+                <Input
+                  id="edit-emp-code"
+                  placeholder="E.g. EMP-1024"
+                  {...form.register("employee_code")}
+                />
+              </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-emp-name">Name</Label>
                 <Input id="edit-emp-name" {...form.register("name")} />
@@ -201,6 +224,17 @@ export function EmployeeProfileActions({
                 </div>
               </div>
               <div className="grid gap-2">
+                <Label htmlFor="edit-emp-status">Status</Label>
+                <select
+                  id="edit-emp-status"
+                  className="border-input bg-background text-foreground h-8 w-full rounded-lg border px-2.5 text-sm"
+                  {...form.register("is_active")}
+                >
+                  <option value="true">Active</option>
+                  <option value="false">Inactive (resigned)</option>
+                </select>
+              </div>
+              <div className="grid gap-2">
                 <Label htmlFor="edit-emp-team">Team</Label>
                 <select
                   id="edit-emp-team"
@@ -232,6 +266,29 @@ export function EmployeeProfileActions({
                   type="date"
                   {...form.register("join_date")}
                 />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-emp-reporting">
+                  Reporting to (manager Employee ID)
+                </Label>
+                <EmployeeIdCombobox
+                  value={form.watch("reporting_to_employee_code") ?? ""}
+                  onChange={(next) =>
+                    form.setValue("reporting_to_employee_code", next, {
+                      shouldDirty: true,
+                      shouldTouch: true,
+                    })
+                  }
+                  options={employeeIdOptions.filter(
+                    (o) =>
+                      o.employee_code?.trim() !==
+                      (employee?.employee_code ?? "").trim(),
+                  )}
+                  placeholder="Pick a manager…"
+                />
+                <p className="text-muted-foreground text-xs">
+                  Leave blank to clear. Manager must exist in this workspace.
+                </p>
               </div>
             </div>
             <DialogFooter className="gap-2">

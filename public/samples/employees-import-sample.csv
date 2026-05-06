@@ -1,0 +1,6 @@
+employee_id,name,email,role,department,team,join_date,reporting_to,status
+USER1,User 1,user1@test.com,SDE 2,Tech,Team A,2025-04-12,,active
+USER2,User 2,user2@test.com,QA,Tech,Team B,2025-03-01,USER1,active
+USER3,User 3,user3@test.com,QA,Tech,Team B,2025-03-08,USER1,active
+USER4,User 4,user4@test.com,SDE 1,Tech,Team A,2024-08-01,USER1,inactive
+

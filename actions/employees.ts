@@ -24,6 +24,35 @@ export type EmployeeActionResult<T = undefined> =
   | { ok: true; data?: T }
   | { ok: false; error: string };
 
+async function resolveReportingToEmployeeId(
+  access: Awaited<ReturnType<typeof getOrgAccess>>,
+  reportingEmployeeCodeRaw: string,
+  employeeId: string | null,
+): Promise<
+  | { ok: true; reportingToEmployeeId: string | null }
+  | { ok: false; error: string }
+> {
+  if (!access) return { ok: false, error: "We could not load your workspace." };
+  const employeeCode = reportingEmployeeCodeRaw.trim();
+  if (!employeeCode) return { ok: true, reportingToEmployeeId: null };
+  const { data: manager } = await access.supabase
+    .from("employees")
+    .select("id")
+    .eq("org_id", access.orgId)
+    .eq("employee_code", employeeCode)
+    .maybeSingle();
+  if (!manager?.id) {
+    return {
+      ok: false,
+      error: `Reporting manager (Employee ID ${employeeCode}) is not in your workspace yet.`,
+    };
+  }
+  if (employeeId && manager.id === employeeId) {
+    return { ok: false, error: "Reporting manager cannot be the employee." };
+  }
+  return { ok: true, reportingToEmployeeId: manager.id };
+}
+
 function revalidateEmployeeSurfaces(employeeId: string): void {
   revalidatePath("/dashboard");
   revalidatePath("/employees");
@@ -94,6 +123,8 @@ export async function createEmployee(
       org_id: access.orgId,
       name: parsed.data.name,
       email: parsed.data.email.toLowerCase(),
+      employee_code: parsed.data.employee_code.trim(),
+      is_active: parsed.data.is_active === false ? false : true,
       role: parsed.data.role.trim() ? parsed.data.role.trim() : "",
       department: "",
       team_name: "",
@@ -106,7 +137,7 @@ export async function createEmployee(
     if (isUniqueViolation(error)) {
       return {
         ok: false,
-        error: "You already have an employee with this email.",
+        error: "You already have an employee with this email or Employee ID.",
       };
     }
     return { ok: false, error: error.message };
@@ -114,6 +145,13 @@ export async function createEmployee(
 
   const inputTeamName = parsed.data.team_name.trim();
   const inputDepartment = parsed.data.department.trim();
+  const reportingResolved = await resolveReportingToEmployeeId(
+    access,
+    parsed.data.reporting_to_employee_code ?? "",
+    data.id,
+  );
+  if (!reportingResolved.ok) return { ok: false, error: reportingResolved.error };
+
   if (inputTeamName.length > 0) {
     const { data: matchedTeam, error: teamErr } = await access.supabase
       .from("teams")
@@ -136,13 +174,24 @@ export async function createEmployee(
       .update({
         team_name: matchedTeam.name.trim(),
         department: teamDepartment.trim(),
+        reporting_to_employee_id: reportingResolved.reportingToEmployeeId,
       })
       .eq("id", data.id)
       .eq("org_id", access.orgId);
   } else if (inputDepartment.length > 0) {
     await access.supabase
       .from("employees")
-      .update({ department: inputDepartment, team_name: "" })
+      .update({
+        department: inputDepartment,
+        team_name: "",
+        reporting_to_employee_id: reportingResolved.reportingToEmployeeId,
+      })
+      .eq("id", data.id)
+      .eq("org_id", access.orgId);
+  } else {
+    await access.supabase
+      .from("employees")
+      .update({ reporting_to_employee_id: reportingResolved.reportingToEmployeeId })
       .eq("id", data.id)
       .eq("org_id", access.orgId);
   }
@@ -195,6 +244,12 @@ export async function updateEmployee(
   let nextTeamName = "";
   let nextDepartment = parsed.data.department.trim() ? parsed.data.department.trim() : "";
   const teamInput = parsed.data.team_name.trim();
+  const reportingResolved = await resolveReportingToEmployeeId(
+    access,
+    parsed.data.reporting_to_employee_code ?? "",
+    employeeId,
+  );
+  if (!reportingResolved.ok) return { ok: false, error: reportingResolved.error };
   if (teamInput.length > 0) {
     const { data: matchedTeam, error: teamErr } = await access.supabase
       .from("teams")
@@ -220,10 +275,13 @@ export async function updateEmployee(
     .update({
       name: parsed.data.name,
       email: parsed.data.email.toLowerCase(),
+      employee_code: parsed.data.employee_code.trim(),
+      is_active: parsed.data.is_active === false ? false : true,
       role: parsed.data.role.trim() ? parsed.data.role.trim() : "",
       department: nextDepartment,
       team_name: nextTeamName,
       join_date: parsed.data.join_date ?? null,
+      reporting_to_employee_id: reportingResolved.reportingToEmployeeId,
     })
     .eq("id", employeeId)
     .eq("org_id", access.orgId)

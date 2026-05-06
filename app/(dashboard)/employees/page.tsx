@@ -1,4 +1,5 @@
 import { AddEmployeeDialog } from "@/components/employees/add-employee-dialog";
+import { ImportEmployeesDialog } from "@/components/employees/import-employees-dialog";
 import type { ReactElement } from "react";
 
 import {
@@ -104,11 +105,25 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
   const reviewsByEmployee = buildCountIndex(revRes.data ?? undefined);
   const notesByEmployee = buildCountIndex(noteRes.data ?? undefined);
 
+  const idToEmployeeCode = new Map<string, string>();
+  for (const e of rows) {
+    const code = e.employee_code?.trim() ?? "";
+    if (code) idToEmployeeCode.set(e.id, code);
+  }
+  const idToEmployeeName = new Map<string, string>();
+  for (const e of rows) {
+    const name = e.name?.trim() ?? "";
+    if (name) idToEmployeeName.set(e.id, name);
+  }
+
   const enriched: EmployeeListRow[] = rows.map((employee) => ({
     ...employee,
     achievement_count: achievementsByEmployee.get(employee.id) ?? 0,
     review_count: reviewsByEmployee.get(employee.id) ?? 0,
     notes_count: notesByEmployee.get(employee.id) ?? 0,
+    reporting_to_name: employee.reporting_to_employee_id
+      ? (idToEmployeeName.get(employee.reporting_to_employee_id) ?? null)
+      : null,
   }));
 
   const activeEmployees = hasLocked
@@ -123,6 +138,17 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
     DepartmentRow,
     "id" | "name"
   >[];
+  const employeeIdOptions = rows
+    .map((e) => ({
+      employee_code: e.employee_code?.trim() ?? "",
+      name: e.name,
+    }))
+    .filter((e) => e.employee_code.length > 0)
+    .sort((a, b) =>
+      a.employee_code.localeCompare(b.employee_code, undefined, {
+        sensitivity: "base",
+      }),
+    );
 
   return (
     <>
@@ -130,12 +156,16 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
         title="Employees"
         description="Managers you support with structured review context."
         actions={
-          <AddEmployeeDialog
-            teams={teams}
-            departments={departments}
-            disabled={seatLimitReached}
-            disabledReason={addDisabledReason}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <ImportEmployeesDialog />
+            <AddEmployeeDialog
+              teams={teams}
+              departments={departments}
+              employeeIdOptions={employeeIdOptions}
+              disabled={seatLimitReached}
+              disabledReason={addDisabledReason}
+            />
+          </div>
         }
       />
       <main className="flex-1 overflow-x-auto p-6">
@@ -145,9 +175,11 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
               No employees yet—add someone to begin tracking achievements,
               notes, and reviews.
             </p>
+            <ImportEmployeesDialog />
             <AddEmployeeDialog
               teams={teams}
               departments={departments}
+              employeeIdOptions={employeeIdOptions}
               disabled={seatLimitReached}
               disabledReason={addDisabledReason}
             />

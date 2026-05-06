@@ -44,6 +44,8 @@ export function EmployeeProfileTabs({
   reviews,
   teams,
   departments,
+  employeeIdOptions,
+  currentReportingToEmployeeCode,
   initialTab,
   readOnly = false,
 }: {
@@ -53,6 +55,8 @@ export function EmployeeProfileTabs({
   reviews: ReviewWithDimensions[];
   teams: { id: string; name: string }[];
   departments: { id: string; name: string }[];
+  employeeIdOptions: { employee_code: string; name: string }[];
+  currentReportingToEmployeeCode?: string | null;
   initialTab?: string;
   readOnly?: boolean;
 }): ReactElement {
@@ -174,6 +178,8 @@ export function EmployeeProfileTabs({
                 employee={employee}
                 teams={teams}
                 departments={departments}
+                employeeIdOptions={employeeIdOptions}
+                currentReportingToEmployeeCode={currentReportingToEmployeeCode}
                 readOnly={readOnly}
               />
             </div>

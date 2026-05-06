@@ -33,6 +33,12 @@ export interface UserProfileRow {
 export interface EmployeeRow {
   id: string;
   org_id: string;
+  /** Company-facing employee identifier (not the UUID). */
+  employee_code?: string | null;
+  /** Manager reference within same org. */
+  reporting_to_employee_id?: string | null;
+  /** Resigned / inactive employees (kept for history). */
+  is_active?: boolean | null;
   name: string;
   email: string;
   role: string;

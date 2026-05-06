@@ -19,6 +19,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  EmployeeIdCombobox,
+  type EmployeeIdOption,
+} from "@/components/employees/employee-id-combobox";
+import {
   employeeCreateSchema,
   type EmployeeCreateFormValues,
 } from "@/validators/employee";
@@ -28,11 +32,13 @@ type TeamOption = { id: string; name: string };
 export function AddEmployeeDialog({
   teams,
   departments,
+  employeeIdOptions,
   disabled = false,
   disabledReason,
 }: {
   teams: TeamOption[];
   departments: TeamOption[];
+  employeeIdOptions: EmployeeIdOption[];
   disabled?: boolean;
   disabledReason?: string | null;
 }): React.ReactElement {
@@ -44,10 +50,13 @@ export function AddEmployeeDialog({
     defaultValues: {
       name: "",
       email: "",
+      employee_code: "",
       role: "",
       department: "",
       team_name: "",
       join_date: undefined,
+      reporting_to_employee_code: "",
+      is_active: true,
     },
   });
 
@@ -75,7 +84,7 @@ export function AddEmployeeDialog({
         Add employee
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <form onSubmit={onSubmit}>
             <DialogHeader>
               <DialogTitle>New employee</DialogTitle>
@@ -89,6 +98,14 @@ export function AddEmployeeDialog({
                   {form.formState.errors.root.message}
                 </p>
               ) : null}
+              <div className="grid gap-2">
+                <Label htmlFor="emp-code">Employee ID</Label>
+                <Input
+                  id="emp-code"
+                  placeholder="E.g. EMP-1024"
+                  {...form.register("employee_code")}
+                />
+              </div>
               <div className="grid gap-2">
                 <Label htmlFor="emp-name">Name</Label>
                 <Input id="emp-name" {...form.register("name")} />
@@ -134,6 +151,17 @@ export function AddEmployeeDialog({
                 </div>
               </div>
               <div className="grid gap-2">
+                <Label htmlFor="emp-status">Status</Label>
+                <select
+                  id="emp-status"
+                  className="border-input bg-background text-foreground h-8 w-full rounded-lg border px-2.5 text-sm"
+                  {...form.register("is_active")}
+                >
+                  <option value="true">Active</option>
+                  <option value="false">Inactive (resigned)</option>
+                </select>
+              </div>
+              <div className="grid gap-2">
                 <Label htmlFor="emp-team">Team</Label>
                 <select
                   id="emp-team"
@@ -154,6 +182,22 @@ export function AddEmployeeDialog({
                   id="emp-join"
                   type="date"
                   {...form.register("join_date")}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="emp-reporting">
+                  Reporting to (manager Employee ID)
+                </Label>
+                <EmployeeIdCombobox
+                  value={form.watch("reporting_to_employee_code") ?? ""}
+                  onChange={(next) =>
+                    form.setValue("reporting_to_employee_code", next, {
+                      shouldDirty: true,
+                      shouldTouch: true,
+                    })
+                  }
+                  options={employeeIdOptions}
+                  placeholder="Pick a manager…"
                 />
               </div>
             </div>
