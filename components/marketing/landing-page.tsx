@@ -17,13 +17,6 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-const NAV_ITEMS: { id: string; label: string }[] = [
-  { id: "product", label: "Product" },
-  { id: "solutions", label: "Solutions" },
-  { id: "pricing", label: "Pricing" },
-  { id: "resources", label: "Resources" },
-];
-
 function SectionHeading({
   eyebrow,
   title,

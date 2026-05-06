@@ -17,6 +17,7 @@ import {
 import { motion, useReducedMotion } from "motion/react";
 
 import { signOut } from "@/actions/auth";
+import { HelpDialog } from "@/components/help/help-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { easingOut } from "@/lib/motion-variants";
@@ -162,6 +163,9 @@ export function AppSidebar(): React.ReactElement {
         <motion.div
           {...(prefersReducedMotion ? {} : { whileTap: { scale: 0.99 } })}
         >
+          <div className="mb-1.5">
+            <HelpDialog />
+          </div>
           <Button
             type="submit"
             variant="ghost"
