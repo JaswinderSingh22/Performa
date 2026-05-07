@@ -20,16 +20,36 @@ function revalidateCycleSurfaces(cycleId?: string) {
 
 // ─── Validators ──────────────────────────────────────────────────────────────
 
-const createCycleSchema = z.object({
-  title: z.string().trim().min(1, "Title is required").max(120),
-  cadence: z.enum(["monthly", "quarterly", "mid_year", "yearly"]),
-  period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD"),
-  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD"),
-  self_review_due: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
-    .optional(),
-});
+const createCycleSchema = z
+  .object({
+    title: z.string().trim().min(1, "Title is required").max(120),
+    cadence: z.enum(["monthly", "quarterly", "mid_year", "yearly"]),
+    period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD"),
+    period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD"),
+    self_review_due: z
+      .string()
+      .optional()
+      .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined))
+      .pipe(
+        z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+          .optional(),
+      ),
+    scope_entire_org: z.boolean(),
+    scoped_team_names: z.array(z.string().trim().min(1)).max(80).default([]),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.scope_entire_org) {
+      if (!data.scoped_team_names || data.scoped_team_names.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Select at least one team, or enable entire workspace.",
+          path: ["scoped_team_names"],
+        });
+      }
+    }
+  });
 
 const openCycleSchema = z.object({ cycleId: z.uuid() });
 const closeCycleSchema = z.object({ cycleId: z.uuid() });
@@ -66,6 +86,28 @@ export async function createReviewCycle(
     return { ok: false, error: "Period end must be after period start." };
   }
 
+  let scoped_team_names_insert: string[] | null = null;
+  if (!parsed.data.scope_entire_org) {
+    const uniq = new Set<string>();
+    for (const raw of parsed.data.scoped_team_names ?? []) {
+      const { data: matchedTeam, error: teamErr } = await access.supabase
+        .from("teams")
+        .select("name")
+        .eq("org_id", access.orgId)
+        .ilike("name", raw.trim())
+        .maybeSingle();
+
+      if (teamErr || !matchedTeam) {
+        return {
+          ok: false,
+          error: `Team "${raw}" was not found. Create it under Organisation → Teams first.`,
+        };
+      }
+      uniq.add((matchedTeam.name as string).trim());
+    }
+    scoped_team_names_insert = [...uniq];
+  }
+
   const { data, error } = await access.supabase
     .from("review_cycles")
     .insert({
@@ -75,6 +117,7 @@ export async function createReviewCycle(
       period_start: parsed.data.period_start,
       period_end: parsed.data.period_end,
       self_review_due: parsed.data.self_review_due ?? null,
+      scoped_team_names: scoped_team_names_insert,
       status: "draft",
       created_by: userId,
     })
@@ -87,8 +130,9 @@ export async function createReviewCycle(
 }
 
 /**
- * Opens a cycle: status becomes 'open' and creates employee_self_reviews rows
- * for all active employees in the org (or scoped team for tl/manager).
+ * Opens a cycle: status becomes 'open' and upserts employee_self_reviews rows
+ * for active employees in scope — entire org when scoped_team_names is null/empty,
+ * otherwise employees whose team_name matches the cycle's scoped_team_names.
  */
 export async function openReviewCycle(
   input: unknown,
@@ -103,7 +147,7 @@ export async function openReviewCycle(
   // Verify cycle belongs to this org
   const { data: cycle, error: cErr } = await access.supabase
     .from("review_cycles")
-    .select("id, status, org_id")
+    .select("id, status, org_id, scoped_team_names")
     .eq("id", parsed.data.cycleId)
     .eq("org_id", access.orgId)
     .maybeSingle();
@@ -112,12 +156,18 @@ export async function openReviewCycle(
   if (cycle.status !== "draft")
     return { ok: false, error: "Only draft cycles can be opened." };
 
-  // Fetch all active employees
-  const { data: employees, error: empErr } = await access.supabase
+  let employeeQuery = access.supabase
     .from("employees")
     .select("id")
     .eq("org_id", access.orgId)
     .eq("is_active", true);
+
+  const scoped = cycle.scoped_team_names as string[] | null | undefined;
+  if (Array.isArray(scoped) && scoped.length > 0) {
+    employeeQuery = employeeQuery.in("team_name", scoped);
+  }
+
+  const { data: employees, error: empErr } = await employeeQuery;
 
   if (empErr) return { ok: false, error: empErr.message };
 
@@ -128,12 +178,18 @@ export async function openReviewCycle(
     status: "pending" as const,
   }));
 
-  if (rows.length > 0) {
-    const { error: insErr } = await access.supabase
-      .from("employee_self_reviews")
-      .upsert(rows, { onConflict: "review_cycle_id,employee_id", ignoreDuplicates: true });
-    if (insErr) return { ok: false, error: insErr.message };
+  if (rows.length === 0) {
+    return {
+      ok: false,
+      error:
+        "No active employees belong to this cycle's scope. Add people to the selected teams (or widen scope) before opening.",
+    };
   }
+
+  const { error: insErr } = await access.supabase
+    .from("employee_self_reviews")
+    .upsert(rows, { onConflict: "review_cycle_id,employee_id", ignoreDuplicates: true });
+  if (insErr) return { ok: false, error: insErr.message };
 
   const { error: updErr } = await access.supabase
     .from("review_cycles")

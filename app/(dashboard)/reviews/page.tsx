@@ -70,13 +70,24 @@ export default async function ReviewsPage(): Promise<ReactElement | null> {
 
   const isAdminLike = access.role === "admin" || access.role === "hr";
 
-  const { data: cycles, error } = await access.supabase
-    .from("review_cycles")
-    .select("*")
-    .eq("org_id", access.orgId)
-    .order("created_at", { ascending: false });
+  const [{ data: cycles, error }, { data: teamsData, error: teamsErr }] =
+    await Promise.all([
+      access.supabase
+        .from("review_cycles")
+        .select("*")
+        .eq("org_id", access.orgId)
+        .order("created_at", { ascending: false }),
+      access.supabase
+        .from("teams")
+        .select("name")
+        .eq("org_id", access.orgId)
+        .order("name", { ascending: true }),
+    ]);
 
   if (error) throw new Error(error.message);
+  if (teamsErr) throw new Error(teamsErr.message);
+
+  const teamOptions = (teamsData ?? []).map((row) => ({ name: row.name as string }));
 
   // Fetch submission counts per cycle
   const { data: submissionCounts } = await access.supabase
@@ -100,12 +111,12 @@ export default async function ReviewsPage(): Promise<ReactElement | null> {
       <DashboardHeader
         title="Review Cycles"
         description="Manage employee self-reviews and manager feedback across your organisation."
-        actions={isAdminLike ? <CreateCycleDialog /> : undefined}
+        actions={isAdminLike ? <CreateCycleDialog teams={teamOptions} /> : undefined}
       />
 
       <main className="flex-1 overflow-x-auto p-6">
         {typedCycles.length === 0 ? (
-          <EmptyState isAdminLike={isAdminLike} />
+          <EmptyState isAdminLike={isAdminLike} teams={teamOptions} />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {typedCycles.map((cycle) => {
@@ -190,7 +201,13 @@ export default async function ReviewsPage(): Promise<ReactElement | null> {
   );
 }
 
-function EmptyState({ isAdminLike }: { isAdminLike: boolean }) {
+function EmptyState({
+  isAdminLike,
+  teams,
+}: {
+  isAdminLike: boolean;
+  teams: { name: string }[];
+}) {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
       <div className="bg-primary/8 text-primary mb-5 flex size-16 items-center justify-center rounded-2xl">
@@ -204,7 +221,7 @@ function EmptyState({ isAdminLike }: { isAdminLike: boolean }) {
       </p>
       {isAdminLike && (
         <div className="mt-6">
-          <CreateCycleDialog />
+          <CreateCycleDialog teams={teams} />
         </div>
       )}
       <div className="mt-10 grid max-w-lg grid-cols-3 gap-4 text-left">

@@ -162,6 +162,8 @@ export interface ReviewCycleRow {
   period_end: string;
   self_review_due: string | null;
   status: ReviewCycleStatus;
+  /** Null = open for all active employees; else only employees.team_name matches. */
+  scoped_team_names?: string[] | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

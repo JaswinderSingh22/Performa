@@ -35,6 +35,12 @@ function formatDate(d: string | null | undefined) {
   });
 }
 
+function cycleScopeLabel(cycle: ReviewCycleRow): string {
+  const names = cycle.scoped_team_names;
+  if (!names || names.length === 0) return "All active employees";
+  return names.join(", ");
+}
+
 function submissionBadge(status: EmployeeSelfReviewRow["status"]) {
   switch (status) {
     case "submitted":
@@ -182,7 +188,7 @@ export default async function CycleDetailPage({
     <>
       <DashboardHeader
         title={typedCycle.title}
-        description={`${new Date(typedCycle.period_start).toLocaleDateString("en-IN", { month: "short", year: "numeric" })} – ${new Date(typedCycle.period_end).toLocaleDateString("en-IN", { month: "short", year: "numeric" })} · ${typedCycle.cadence}`}
+        description={`${new Date(typedCycle.period_start).toLocaleDateString("en-IN", { month: "short", year: "numeric" })} – ${new Date(typedCycle.period_end).toLocaleDateString("en-IN", { month: "short", year: "numeric" })} · ${typedCycle.cadence} · ${cycleScopeLabel(typedCycle)}`}
         actions={
           <div className="flex items-center gap-2">
             <Link href="/reviews" className={buttonVariants({ variant: "ghost", size: "sm", className: "gap-1.5" })}>
@@ -257,7 +263,7 @@ export default async function CycleDetailPage({
             <Users2Icon className="text-muted-foreground/40 mb-3 size-10" />
             <p className="text-muted-foreground text-sm">
               {typedCycle.status === "draft"
-                ? "Open this cycle to create self-review forms for all active employees."
+                ? "Open this cycle to create self-review forms for each employee in this cycle's scope."
                 : "No employees found for this cycle."}
             </p>
           </div>
