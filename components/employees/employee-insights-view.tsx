@@ -1,15 +1,21 @@
-'use client';
+"use client";
+
 import Link from "next/link";
 import type { ReactElement } from "react";
-import * as React from "react";
 import {
-  InfoIcon,
-  StickyNoteIcon,
-  TrophyIcon,
+  ArrowRightIcon,
+  CalendarRangeIcon,
+  CheckCircle2Icon,
+  ClipboardListIcon,
+  ClockIcon,
+  FilePenLineIcon,
+  ShieldCheckIcon,
+  SparklesIcon,
+  UsersIcon,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -17,39 +23,23 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
-import { formatIsoDate, formatIsoDateRange } from "@/lib/format-dates";
-import { InsightsOverallRating } from "@/components/employees/insights-overall-rating";
-import { InsightsPerformanceChart } from "@/components/employees/insights-performance-chart";
-import { AchievementsPanel } from "@/components/employees/achievements-panel";
-import { EmployeeNotesPanel } from "@/components/employees/employee-notes-panel";
-import {
-  generatedReviewPerformanceSeries,
-  missingCadenceReminders,
-  rollUpOverallScoreSummary,
-  REVIEW_CADENCE_LABELS,
-  type ReviewCadence,
-} from "@/lib/review-cadence";
-import type {
-  AchievementRow,
-  EmployeeNoteRow,
-  EmployeeRow,
-  ReviewWithDimensions,
-} from "@/types/database";
+import { formatIsoDate } from "@/lib/format-dates";
+import type { EmployeeRow } from "@/types/database";
 
-function cadenceOrDefault(c: string | null | undefined): ReviewCadence {
-  if (
-    c === "monthly" ||
-    c === "quarterly" ||
-    c === "mid_year" ||
-    c === "yearly"
-  ) {
-    return c;
-  }
-  return "quarterly";
-}
+export type EmployeeReviewCycleRow = {
+  selfReviewId: string;
+  cycleId: string;
+  cycleTitle: string;
+  cycleStatus: string;
+  periodStart: string;
+  periodEnd: string;
+  selfReviewDue: string | null;
+  selfStatus: "pending" | "submitted" | "late";
+  selfSubmittedAt: string | null;
+  remarkStatus: "none" | "draft" | "submitted" | "approved" | "archived";
+  overallRating: number | null;
+  remarkApprovedAt: string | null;
+};
 
 function initials(name: string): string {
   const p = name.trim().split(/\s+/).filter(Boolean);
@@ -58,211 +48,125 @@ function initials(name: string): string {
   return (p[0][0] + p[p.length - 1][0]).toUpperCase();
 }
 
-function reviewTitle(row: ReviewWithDimensions): string {
-  const t = row.title?.trim();
-  return t && t.length > 0 ? t : "Performance review";
+function selfBadge(status: EmployeeReviewCycleRow["selfStatus"]): ReactElement {
+  if (status === "submitted") {
+    return (
+      <Badge className="gap-1 border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300">
+        <CheckCircle2Icon className="size-3" />
+        Submitted
+      </Badge>
+    );
+  }
+  if (status === "late") {
+    return (
+      <Badge variant="destructive" className="gap-1">
+        <ClockIcon className="size-3" />
+        Late
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="secondary" className="gap-1 text-muted-foreground">
+      <ClockIcon className="size-3" />
+      Pending
+    </Badge>
+  );
 }
 
-function strategyLabel(strategy: string | null | undefined): string | null {
-  if (!strategy) return null;
-  if (strategy === "raw_period") return "Period roll-up";
-  if (strategy === "stitched_summaries") return "Stitched roll-up";
-  return strategy;
+function remarkBadge(
+  status: EmployeeReviewCycleRow["remarkStatus"],
+): ReactElement {
+  switch (status) {
+    case "approved":
+      return (
+        <Badge className="gap-1 border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300">
+          <SparklesIcon className="size-3" />
+          Approved
+        </Badge>
+      );
+    case "submitted":
+      return (
+        <Badge className="gap-1 border-amber-500/25 bg-amber-500/10 text-amber-900 dark:text-amber-200">
+          <ShieldCheckIcon className="size-3" />
+          Awaiting approval
+        </Badge>
+      );
+    case "draft":
+      return (
+        <Badge variant="outline" className="gap-1">
+          <FilePenLineIcon className="size-3" />
+          In progress
+        </Badge>
+      );
+    case "archived":
+      return <Badge variant="secondary">Archived</Badge>;
+    default:
+      return (
+        <span className="text-muted-foreground text-xs">Not started</span>
+      );
+  }
 }
 
-function teaser(text: string | null | undefined, max = 180): string {
-  const t = text?.trim() ?? "";
-  if (t.length <= max) return t || "—";
-  return `${t.slice(0, max).trim()}…`;
-}
-
-function formatIsoLocalMedium(iso: string): string {
-  // Deterministic string to avoid hydration mismatches across locales/timezones.
-  return formatIsoDate(iso);
-}
-
-function isWithinRange(dateIso: string, fromIso: string, toIso: string): boolean {
-  return dateIso >= fromIso && dateIso <= toIso;
-}
-
-type OverallWindow = "all" | "month" | "quarter" | "mid_year" | "year";
-
-function cutoffIsoForWindow(window: Exclude<OverallWindow, "all">): string {
-  const d = new Date();
-  if (window === "month") d.setMonth(d.getMonth() - 1);
-  if (window === "quarter") d.setMonth(d.getMonth() - 3);
-  if (window === "mid_year") d.setMonth(d.getMonth() - 6);
-  if (window === "year") d.setFullYear(d.getFullYear() - 1);
-  return d.toISOString().slice(0, 10);
+function cycleStatusBadge(status: string): ReactElement {
+  if (status === "open")
+    return (
+      <Badge className="border-emerald-500/30 bg-emerald-500/10 font-normal text-emerald-800 dark:text-emerald-300">
+        Open
+      </Badge>
+    );
+  if (status === "closed")
+    return (
+      <Badge variant="secondary" className="font-normal">
+        Closed
+      </Badge>
+    );
+  if (status === "draft")
+    return (
+      <Badge
+        variant="outline"
+        className="border-amber-500/30 bg-amber-500/10 font-normal text-amber-800 dark:text-amber-200"
+      >
+        Draft
+      </Badge>
+    );
+  return (
+    <Badge variant="outline" className="font-normal">
+      {status}
+    </Badge>
+  );
 }
 
 export function EmployeeInsightsView({
   employee,
-  achievements,
-  notes,
-  reviews,
-  orgReviewCadence,
-  orgQuarterStartMonth,
-  initialTab,
+  reviewRows,
   readOnly = false,
 }: {
   employee: EmployeeRow;
-  achievements: AchievementRow[];
-  notes: EmployeeNoteRow[];
-  reviews: ReviewWithDimensions[];
-  orgReviewCadence: ReviewCadence;
-  orgQuarterStartMonth: number;
-  initialTab?: string;
+  reviewRows: EmployeeReviewCycleRow[];
   readOnly?: boolean;
 }): ReactElement {
-  const tab =
-    initialTab === "achievements" || initialTab === "notes"
-      ? initialTab
-      : "achievements";
-  const [overallWindow, setOverallWindow] = React.useState<OverallWindow>("all");
-  const withPeriod = reviews.filter((r) => r.period_start && r.period_end);
-  const dimAvg =
-    reviews.length > 0
-      ? reviews
-          .map((r) => {
-            const dims = r.review_dimensions ?? [];
-            if (dims.length === 0) return null;
-            const mean =
-              dims.reduce((a, d) => a + d.rating, 0) / dims.length;
-            return Math.round(mean * 10) / 10;
-          })
-          .filter((n): n is number => n !== null)
-      : [];
-  const trend =
-    dimAvg.length > 0
-      ? Math.round(
-          (dimAvg.reduce((a, b) => a + b, 0) / dimAvg.length) * 10,
-        ) / 10
-      : null;
-
-  const recentAchievements = achievements.slice(0, 5);
-  const recentNotes = notes.slice(0, 5);
-  const sortedReviews = [...reviews].sort(
-    (a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  const latestApproved = reviewRows.find(
+    (r) => r.remarkStatus === "approved" && r.overallRating != null,
   );
-  const recentReviews = sortedReviews.slice(0, 6);
-
-  const rollupSeries = generatedReviewPerformanceSeries(reviews);
-  const scoredSeries = rollupSeries.filter(
-    (p): p is (typeof rollupSeries)[number] & { score10: number } => p.score10 !== null,
+  const openCycles = reviewRows.filter((r) => r.cycleStatus === "open");
+  const actionNeeded = reviewRows.filter(
+    (r) =>
+      r.cycleStatus === "open" &&
+      (r.selfStatus === "pending" || r.selfStatus === "late" ||
+        (r.selfStatus === "submitted" && r.remarkStatus !== "approved")),
   );
-  const filteredScoredSeries = React.useMemo(() => {
-    if (overallWindow === "all") return scoredSeries;
-    const cutoff = cutoffIsoForWindow(overallWindow);
-    return scoredSeries.filter((p) => p.periodStart >= cutoff);
-  }, [overallWindow, scoredSeries]);
-  const overall10 =
-    filteredScoredSeries.length === 0
-      ? null
-      : Math.round(
-          (filteredScoredSeries.reduce((acc, p) => acc + p.score10, 0) /
-            filteredScoredSeries.length) *
-            10,
-        ) / 10;
-  const windowLabels: Record<OverallWindow, string> = {
-    all: "Overall average",
-    month: "Last month",
-    quarter: "Last quarter",
-    mid_year: "Last mid-year",
-    year: "Last year",
-  };
-  const overallSummary = rollUpOverallScoreSummary(reviews);
-  let overallSubtitle = windowLabels[overallWindow];
-  let overallDateSubtitle: string | null = null;
-  if (filteredScoredSeries.length > 0) {
-    const sorted = [...filteredScoredSeries].sort((a, b) =>
-      a.sortKey.localeCompare(b.sortKey),
-    );
-    const first = sorted[0];
-    const last = sorted[sorted.length - 1];
-    overallSubtitle =
-      filteredScoredSeries.length === 1
-        ? `${windowLabels[overallWindow]} · 1 period`
-        : `${windowLabels[overallWindow]} · ${filteredScoredSeries.length} periods`;
-    overallDateSubtitle =
-      first.sortKey === last.sortKey
-        ? formatIsoLocalMedium(first.sortKey)
-        : formatIsoDateRange(first.sortKey, last.sortKey);
-  } else if (
-    overallWindow === "all" &&
-    overallSummary.periodsWithScores > 0 &&
-    overallSummary.rangeFrom &&
-    overallSummary.rangeTo
-  ) {
-    overallSubtitle =
-      overallSummary.periodsWithScores === 1
-        ? "Overall average · 1 period"
-        : `Overall average · ${overallSummary.periodsWithScores} periods`;
-    overallDateSubtitle =
-      overallSummary.rangeFrom === overallSummary.rangeTo
-        ? formatIsoLocalMedium(overallSummary.rangeFrom)
-        : formatIsoDateRange(overallSummary.rangeFrom, overallSummary.rangeTo);
-  }
-
-  const scheduleCadence = cadenceOrDefault(orgReviewCadence);
-  const reminderSlots = missingCadenceReminders(
-    scheduleCadence,
-    employee.join_date?.slice(0, 10) ?? null,
-    orgQuarterStartMonth,
-    reviews.map((r) => ({
-      generation_strategy: r.generation_strategy,
-      review_cadence: r.review_cadence,
-      period_key: r.period_key,
-      period_start: r.period_start,
-      period_end: r.period_end,
-    })),
-  );
-  const perfSeries = React.useMemo(() => {
-    if (overallWindow === "all") return rollupSeries;
-    const cutoff = cutoffIsoForWindow(overallWindow);
-    return rollupSeries.filter((p) => p.periodStart >= cutoff);
-  }, [overallWindow, rollupSeries]);
-
-  const slotEvidence = React.useMemo(() => {
-    return [...reminderSlots]
-      .map((slot) => {
-        const hasAchievement = achievements.some((a) => {
-          const anchor =
-            a.achievement_date?.slice(0, 10) || a.created_at.slice(0, 10);
-          return isWithinRange(anchor, slot.from, slot.to);
-        });
-        const hasNote = notes.some((n) => {
-          const d = n.created_at.slice(0, 10);
-          return isWithinRange(d, slot.from, slot.to);
-        });
-        const hasReview = reviews.some((r) => {
-          const from = r.period_start?.slice(0, 10);
-          const to = r.period_end?.slice(0, 10);
-          if (!from || !to) return false;
-          return !(to < slot.from || from > slot.to);
-        });
-        return {
-          slot,
-          hasAchievement,
-          hasNote,
-          hasReview,
-          hasEvidence: hasAchievement || hasNote || hasReview,
-        };
-      })
-      .sort((a, b) => b.slot.from.localeCompare(a.slot.from));
-  }, [reminderSlots, achievements, notes, reviews]);
 
   return (
     <div className="relative mx-auto max-w-5xl space-y-8">
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
         <div className="bg-primary/6 absolute -top-20 right-0 h-64 w-[22rem] rounded-full blur-3xl" />
-        <div className="bg-violet-500/8 absolute top-48 -left-16 h-48 w-48 rounded-full blur-3xl" />
+        <div className="bg-violet-500/8 absolute top-40 -left-16 h-48 w-48 rounded-full blur-3xl" />
       </div>
 
+      {/* Profile */}
       <Card className="border-border/70 from-card/95 to-muted/12 relative overflow-hidden bg-gradient-to-br p-5 shadow-lg md:p-6">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
-        <div className="flex flex-col items-stretch gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 flex-1 gap-4">
             <div className="bg-primary/14 text-primary border-primary/12 flex size-16 shrink-0 items-center justify-center rounded-2xl border text-lg font-semibold tracking-tight tabular-nums shadow-inner">
               {initials(employee.name)}
@@ -297,458 +201,226 @@ export function EmployeeInsightsView({
                     {employee.role}
                   </Badge>
                 ) : null}
+                {employee.team_name?.trim() ? (
+                  <Badge variant="outline" className="font-normal">
+                    Team · {employee.team_name.trim()}
+                  </Badge>
+                ) : null}
                 {employee.department ? (
                   <Badge variant="outline" className="font-normal">
                     {employee.department}
                   </Badge>
                 ) : null}
               </div>
+              <p className="text-muted-foreground mt-4 max-w-xl text-sm leading-relaxed">
+                Review history is driven by{" "}
+                <span className="text-foreground font-medium">self-review forms</span>{" "}
+                and{" "}
+                <span className="text-foreground font-medium">
+                  manager remarks & approval
+                </span>{" "}
+                on each cycle — no separate notes or achievements are required on this
+                page.
+              </p>
             </div>
           </div>
-          <InsightsOverallRating
-            scoreOutOf10={overall10}
-            reviewLabel={overallSubtitle}
-            reviewDateLabel={overallDateSubtitle}
-            className="shrink-0 self-start lg:self-center"
-          />
-        </div>
-        <div className="mt-5 space-y-2">
-          <div className="bg-muted/35 inline-flex flex-wrap rounded-xl border border-border/60 p-1">
-            {(
-              [
-                ["all", "Overall"],
-                ["month", "Last month"],
-                ["quarter", "Last quarter"],
-                ["mid_year", "Last mid-year"],
-                ["year", "Last year"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setOverallWindow(id)}
-                className={cn(
-                  "rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
-                  overallWindow === id
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <p className="text-muted-foreground text-xs">
-            Selection applies to both overall score and performance trend.
-          </p>
-        </div>
-      </Card>
-
-      <Card className="border-border/70 shadow-md">
-        <CardHeader>
-          <CardTitle className="text-base">Performance trend</CardTitle>
-          <CardDescription>
-            Overall score (0–10) for the selected window, newest on the right.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <InsightsPerformanceChart series={perfSeries} />
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/70 shadow-md">
-        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <CardTitle className="text-base">
-              Review schedule & reminders
-            </CardTitle>
-            <CardDescription>
-              Expected {REVIEW_CADENCE_LABELS[scheduleCadence].toLowerCase()} review
-              periods without a completed roll-up show as reminders below.
-            </CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <p className="text-muted-foreground text-xs leading-relaxed">
-            Department cadence:{" "}
-            <span className="text-foreground font-medium">
-              {REVIEW_CADENCE_LABELS[orgReviewCadence]}
-            </span>
-            {orgReviewCadence === "quarterly" ? (
-              <>
-                {" "}
-                · quarter starts in{" "}
-                <span className="text-foreground font-medium">
-                  {new Date(2026, orgQuarterStartMonth - 1, 1).toLocaleString(
-                    undefined,
-                    { month: "long" },
-                  )}
+          {latestApproved?.overallRating != null ? (
+            <div className="border-border/60 bg-muted/20 shrink-0 rounded-2xl border px-5 py-4 text-center">
+              <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                Latest approved rating
+              </p>
+              <p className="text-foreground mt-1 text-3xl font-semibold tabular-nums">
+                <span className="text-amber-500">★</span>{" "}
+                {latestApproved.overallRating}
+                <span className="text-muted-foreground text-lg font-normal">
+                  /5
                 </span>
-              </>
-            ) : null}
-          </p>
-          {slotEvidence.length === 0 ? (
-            <p className="text-muted-foreground border-border/60 bg-muted/15 rounded-xl border border-dashed px-4 py-6 text-center text-sm">
-              You&apos;re caught up for visible {REVIEW_CADENCE_LABELS[scheduleCadence].toLowerCase()}{" "}
-              windows—nice work.
-            </p>
+              </p>
+              {latestApproved.remarkApprovedAt ? (
+                <p className="text-muted-foreground mt-1 text-xs tabular-nums">
+                  Approved {formatIsoDate(latestApproved.remarkApprovedAt)}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </Card>
+
+      {/* Quick summary */}
+      {(openCycles.length > 0 || actionNeeded.length > 0) && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="flex items-center gap-3 pt-5">
+              <div className="bg-sky-500/15 text-sky-700 dark:text-sky-300 flex size-10 items-center justify-center rounded-xl">
+                <CalendarRangeIcon className="size-5" />
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                  Open cycles
+                </p>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {openCycles.length}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="flex items-center gap-3 pt-5">
+              <div className="bg-amber-500/15 text-amber-800 dark:text-amber-200 flex size-10 items-center justify-center rounded-xl">
+                <ClipboardListIcon className="size-5" />
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                  Needs attention
+                </p>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {actionNeeded.length}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="flex items-center gap-3 pt-5">
+              <div className="bg-violet-500/15 text-violet-800 dark:text-violet-200 flex size-10 items-center justify-center rounded-xl">
+                <UsersIcon className="size-5" />
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                  Total cycles (this person)
+                </p>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {reviewRows.length}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Main table */}
+      <Card className="border-border/70 shadow-md">
+        <CardHeader className="border-border/60 border-b">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle>Review cycles</CardTitle>
+              <CardDescription>
+                Self-review and manager progress for each cycle this person is in.
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" className="shrink-0 gap-1.5" render={<Link href="/reviews" />} nativeButton={false}>
+              All cycles
+              <ArrowRightIcon className="size-3.5" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="px-0 pt-0">
+          {reviewRows.length === 0 ? (
+            <div className="text-muted-foreground px-4 py-14 text-center text-sm md:px-6">
+              <p>No review cycles yet for this employee.</p>
+              <p className="mt-2">
+                When an admin opens a cycle, a self-review form is created automatically.
+              </p>
+              <Button className="mt-4" render={<Link href="/reviews" />} nativeButton={false}>
+                Go to reviews
+              </Button>
+            </div>
           ) : (
-            <div className="max-h-[420px] overflow-y-auto rounded-xl border border-border/60 p-2">
-              <ul className="space-y-2">
-                {slotEvidence.map(({ slot, hasEvidence, hasAchievement, hasNote, hasReview }) => (
-                  <li
-                    key={slot.key}
-                    className={cn(
-                      "border-border/70 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3",
-                      hasEvidence
-                        ? "bg-emerald-500/[0.06]"
-                        : "bg-amber-500/[0.08] border-amber-500/30",
-                    )}
-                  >
-                    <div>
-                      <p className="font-medium leading-snug">{slot.label}</p>
-                      <p className="text-muted-foreground text-xs tabular-nums">
-                        {slot.from} → {slot.to}
-                      </p>
-                      <div className="mt-1 flex flex-wrap gap-1.5">
-                        <span className="rounded-full border border-border/70 bg-background/70 px-2 py-0.5 text-[11px]">
-                          Roll-up pending
-                        </span>
-                        {!hasNote ? (
-                          <span className="rounded-full border border-amber-500/40 bg-amber-500/12 px-2 py-0.5 text-[11px] text-amber-900 dark:text-amber-200">
-                            Notes missing
-                          </span>
-                        ) : null}
-                        {!hasAchievement ? (
-                          <span className="rounded-full border border-violet-500/35 bg-violet-500/10 px-2 py-0.5 text-[11px] text-violet-800 dark:text-violet-200">
-                            Achievements missing
-                          </span>
-                        ) : null}
-                        {!hasReview ? (
-                          <span className="rounded-full border border-sky-500/35 bg-sky-500/10 px-2 py-0.5 text-[11px] text-sky-800 dark:text-sky-200">
-                            Prior reviews missing
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {!hasEvidence ? (
-                        <span
-                          className="text-muted-foreground inline-flex items-center gap-1 text-xs"
-                          title="No notes, achievements, or prior reviews exist for this roll-up window."
-                        >
-                          <InfoIcon className="size-3.5" />
-                          No context yet
-                        </span>
-                      ) : null}
-                      {hasEvidence && !readOnly ? (
-                        <Link
-                          href={`/employees/${employee.id}/generate-review?cadence=${scheduleCadence}&periodKey=${encodeURIComponent(slot.key)}&from=${slot.from}&to=${slot.to}&label=${encodeURIComponent(slot.label)}`}
-                          className={cn(
-                            buttonVariants({ variant: "secondary", size: "sm" }),
-                            "shrink-0 rounded-lg",
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead>
+                  <tr className="border-border/60 bg-muted/30 border-b text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <th className="px-4 py-3 md:px-5">Review cycle</th>
+                    <th className="px-4 py-3 md:px-5">Period</th>
+                    <th className="px-4 py-3 md:px-5">State</th>
+                    <th className="px-4 py-3 md:px-5">Self-review</th>
+                    <th className="px-4 py-3 md:px-5">Manager review</th>
+                    <th className="px-4 py-3 text-right md:px-5">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-border/60 divide-y">
+                  {reviewRows.map((row) => {
+                    const canManage =
+                      !readOnly &&
+                      row.cycleStatus === "open" &&
+                      row.selfStatus === "submitted";
+                    const href = `/reviews/${row.cycleId}/${employee.id}`;
+                    return (
+                      <tr key={row.selfReviewId} className="hover:bg-muted/25">
+                        <td className="px-4 py-3.5 align-top md:px-5">
+                          <p className="font-medium leading-snug">{row.cycleTitle}</p>
+                          {row.selfReviewDue ? (
+                            <p className="text-muted-foreground mt-0.5 text-xs tabular-nums">
+                              Due {formatIsoDate(row.selfReviewDue)}
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className="text-muted-foreground px-4 py-3.5 align-top text-xs tabular-nums md:px-5">
+                          {formatIsoDate(row.periodStart)} –{" "}
+                          {formatIsoDate(row.periodEnd)}
+                        </td>
+                        <td className="px-4 py-3.5 align-top md:px-5">
+                          {cycleStatusBadge(row.cycleStatus)}
+                        </td>
+                        <td className="px-4 py-3.5 align-top md:px-5">
+                          <div className="flex flex-col gap-1">
+                            {selfBadge(row.selfStatus)}
+                            {row.selfSubmittedAt ? (
+                              <span className="text-muted-foreground text-[11px] tabular-nums">
+                                {formatIsoDate(row.selfSubmittedAt)}
+                              </span>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5 align-top md:px-5">
+                          <div className="flex flex-col gap-1">
+                            {remarkBadge(row.remarkStatus)}
+                            {row.overallRating != null && row.remarkStatus === "approved" ? (
+                              <span className="text-muted-foreground text-xs tabular-nums">
+                                Rating {row.overallRating}/5
+                              </span>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5 text-right align-top md:px-5">
+                          {row.cycleStatus === "closed" ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs"
+                              render={<Link href={href} />}
+                              nativeButton={false}
+                            >
+                              View
+                            </Button>
+                          ) : canManage ? (
+                            <Button
+                              size="sm"
+                              className="text-xs"
+                              render={<Link href={href} />}
+                              nativeButton={false}
+                            >
+                              {row.remarkStatus === "approved" ? "View" : "Review"}
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs"
+                              render={<Link href={href} />}
+                              nativeButton={false}
+                            >
+                              View
+                            </Button>
                           )}
-                        >
-                          Roll-up
-                        </Link>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled
-                          title={
-                            readOnly
-                              ? "This employee is locked because your workspace is over the seat limit."
-                              : "No notes, achievements, or prior reviews exist for this roll-up window."
-                          }
-                          className={cn(
-                            buttonVariants({ variant: "secondary", size: "sm" }),
-                            "shrink-0 cursor-not-allowed rounded-lg opacity-55",
-                          )}
-                        >
-                          Roll-up
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </CardContent>
-      </Card>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-border/70 overflow-hidden shadow-md">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-              Achievements
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-heading text-3xl font-semibold tabular-nums tracking-tight">
-              {achievements.length}
-            </p>
-            <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
-              Wins captured to support evidence-rich roll-ups.
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/70 overflow-hidden shadow-md">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-              Manager notes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-heading text-3xl font-semibold tabular-nums tracking-tight">
-              {notes.length}
-            </p>
-            <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
-              Free-form context you curate manually.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="border-border/70 lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-base">Signal mix</CardTitle>
-            <CardDescription>
-              {withPeriod.length} of {reviews.length} reviews carry calendar
-              windows—ideal for a roll-up from period.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex justify-between gap-2 border-b border-border/60 pb-2">
-              <span className="text-muted-foreground">Area trend (mean)</span>
-              <span className="font-semibold tabular-nums">
-                {trend !== null ? `${trend} / 5` : "—"}
-              </span>
-            </div>
-            <p className="text-muted-foreground text-xs leading-relaxed">
-              Computed from recent review dimension rows when present; falls back
-              when reviews use checklist-only scoring.
-            </p>
-            <Link
-              href={`/employees/${employee.id}/generate-review`}
-              aria-disabled={readOnly}
-              className={cn(
-                buttonVariants({ variant: "default", size: "sm" }),
-                "mt-2 w-full justify-center rounded-xl no-underline",
-                readOnly ? "pointer-events-none opacity-60" : null,
-              )}
-              title={
-                readOnly
-                  ? "This employee is locked because your workspace is over the seat limit."
-                  : undefined
-              }
-            >
-              Roll-up from period
-            </Link>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/70 lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base">Recent manager notes</CardTitle>
-            <CardDescription>
-              Same items you enter on the profile—always visible on this journey.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {recentNotes.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                No notes yet.{" "}
-                <Link
-                  href={`/employees/${employee.id}/insights?tab=notes`}
-                  className="text-primary font-medium underline-offset-4 hover:underline"
-                >
-                  Add the first note
-                </Link>
-                .
-              </p>
-            ) : (
-              <ScrollArea className="max-h-[240px] pr-3">
-                <ul className="space-y-3">
-                  {recentNotes.map((n) => (
-                    <li
-                      key={n.id}
-                      className="border-border/60 bg-muted/15 rounded-xl border px-4 py-3"
-                    >
-                      <p className="text-muted-foreground text-xs tabular-nums">
-                        {formatIsoDate(n.created_at)}
-                      </p>
-                      <p className="mt-1 line-clamp-3 text-sm leading-relaxed whitespace-pre-wrap">
-                        {n.body.trim() || "(empty)"}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-border/70 from-card to-primary/[0.02] overflow-hidden bg-gradient-to-br">
-          <CardHeader>
-            <CardTitle className="text-base">Latest achievements</CardTitle>
-            <CardDescription>
-              Recent wins to anchor roll-up summaries.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {recentAchievements.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                Capture wins on the profile to strengthen the next draft.
-              </p>
-            ) : (
-              <div className="h-[320px] overflow-y-auto pr-2">
-                <ul className="space-y-2">
-                  {recentAchievements.map((a) => (
-                    <li
-                      key={a.id}
-                      className="border-border/70 bg-muted/20 flex items-start gap-3 rounded-xl border px-4 py-3"
-                    >
-                        <div className="bg-primary/10 text-primary border-primary/20 flex size-9 shrink-0 items-center justify-center rounded-lg border text-[10px] font-bold uppercase">
-                          Win
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium leading-snug">{a.title}</p>
-                          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-xs">
-                            <span className="rounded-full border border-border/70 px-2 py-0.5">
-                              {a.category}
-                            </span>
-                            <span className="tabular-nums">
-                              {(a.achievement_date ?? a.created_at.slice(0, 10)).slice(0, 10)}
-                            </span>
-                          </div>
-                        </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/70 from-card to-violet-500/[0.03] overflow-hidden bg-gradient-to-br">
-          <CardHeader>
-            <CardTitle className="text-base">Review narratives</CardTitle>
-            <CardDescription>
-              Recent narrative snapshots from roll-ups and HR reviews.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {recentReviews.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                No reviews yet.{" "}
-                <Link
-                  href={`/employees/${employee.id}/generate-review`}
-                  className={cn(
-                    "text-primary font-medium underline-offset-4 hover:underline",
-                    readOnly ? "pointer-events-none opacity-60" : null,
-                  )}
-                  aria-disabled={readOnly}
-                  title={
-                    readOnly
-                      ? "This employee is locked because your workspace is over the seat limit."
-                      : undefined
-                  }
-                >
-                  Start a roll-up review
-                </Link>{" "}
-                after you capture context.
-              </p>
-            ) : (
-              <div className="h-[320px] overflow-y-auto pr-2">
-                <ul className="space-y-2">
-                  {recentReviews.map((r) => {
-                    const slo = strategyLabel(r.generation_strategy);
-                    const body =
-                      r.final_review?.trim() ??
-                      r.ai_draft?.trim() ??
-                      "No narrative saved yet.";
-                    return (
-                      <li key={r.id}>
-                        <div className="border-border/70 bg-muted/20 rounded-xl border px-4 py-3">
-                          <div className="min-w-0">
-                            <p className="font-medium leading-tight truncate">
-                              {reviewTitle(r)}
-                            </p>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              <Badge variant="outline" className="font-normal capitalize">
-                                Saved
-                              </Badge>
-                              {slo ? (
-                                <Badge
-                                  variant="secondary"
-                                  className="font-normal"
-                                >
-                                  {slo}
-                                </Badge>
-                              ) : null}
-                              {r.period_start && r.period_end ? (
-                                <span className="text-muted-foreground text-xs tabular-nums">
-                                  {r.period_start.slice(0, 10)} →{" "}
-                                  {r.period_end.slice(0, 10)}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">
-                                  No date window
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
-                              {teaser(body, 200)}
-                            </p>
-                          </div>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="border-border/70 overflow-hidden shadow-md">
-        <Tabs defaultValue={tab} orientation="horizontal" className="gap-0">
-          <div className="bg-muted/35 border-border/60 border-b px-3 py-2 md:px-4">
-            <TabsList className="bg-background/80 h-auto w-full justify-start gap-1 rounded-2xl p-1.5 shadow-sm md:w-auto">
-              <TabsTrigger
-                value="achievements"
-                className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-xl px-3 py-2"
-              >
-                <TrophyIcon className="size-3.5" />
-                Achievements
-              </TabsTrigger>
-              <TabsTrigger
-                value="notes"
-                className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-xl px-3 py-2"
-              >
-                <StickyNoteIcon className="size-3.5" />
-                Notes
-              </TabsTrigger>
-            </TabsList>
-          </div>
-          <div className="p-4 md:p-6">
-            <TabsContent value="achievements" keepMounted={false} className="m-0">
-              <div className="max-h-[560px] overflow-y-auto pr-1">
-              <AchievementsPanel employeeId={employee.id} achievements={achievements} readOnly={readOnly} />
-              </div>
-            </TabsContent>
-            <TabsContent value="notes" keepMounted={false} className="m-0">
-              <div className="max-h-[560px] overflow-y-auto pr-1">
-              <EmployeeNotesPanel employeeId={employee.id} notes={notes} readOnly={readOnly} />
-              </div>
-            </TabsContent>
-          </div>
-        </Tabs>
       </Card>
     </div>
   );

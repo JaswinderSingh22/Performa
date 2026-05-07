@@ -140,7 +140,6 @@ export async function updateSession(req: NextRequest): Promise<NextResponse> {
     // TL/Manager should not access admin/analytics surfaces.
     if (user && activeRole && (activeRole === "manager" || activeRole === "tl")) {
       const blocked =
-        pathname.startsWith("/dashboard") ||
         pathname.startsWith("/billing") ||
         pathname.startsWith("/usage") ||
         pathname.startsWith("/settings") ||

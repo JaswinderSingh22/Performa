@@ -10,6 +10,7 @@ import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { getEffectivePlanFromOrg } from "@/lib/billing/getBillingState";
 import { getOrgAccess } from "@/lib/org-context";
 import { getMaxEmployees, isUnlimitedLimit, normalizePlan, planLabel } from "@/lib/plans";
+import { reconcileWorkspaceJoinedFromAuth } from "@/lib/workspace/reconcile-joined-at";
 import type { DepartmentRow, EmployeeRow, TeamRow } from "@/types/database";
 
 export default async function EmployeesPage(): Promise<ReactElement | null> {
@@ -53,6 +54,8 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
     }
   }
 
+  await reconcileWorkspaceJoinedFromAuth(access.orgId);
+
   const [empRes, achRes, revRes, noteRes, teamRes, departmentRes, orgRes, accessRes, activeCycleRes] =
     await Promise.all([
     empQuery,
@@ -85,7 +88,7 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
       .maybeSingle(),
     access.supabase
       .from("workspace_members")
-      .select("employee_id, role, invited_at")
+      .select("employee_id, role, invited_at, joined_at")
       .eq("org_id", access.orgId),
     // Fetch form tokens from the latest open review cycle
     access.supabase
@@ -174,6 +177,46 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
   const leadEmployeeIds = new Set(
     teams.map((t) => t.manager_employee_id).filter((id): id is string => !!id),
   );
+  const managerIdByTeamName = new Map<string, string>();
+  for (const t of teams) {
+    const n = (t.name as string)?.trim();
+    const mid = t.manager_employee_id as string | null | undefined;
+    if (n && mid) managerIdByTeamName.set(n, mid);
+  }
+  const reportsToManagerIds = new Set<string>();
+  for (const e of rows) {
+    const tn = e.team_name?.trim() ?? "";
+    const mid = tn ? managerIdByTeamName.get(tn) : undefined;
+    if (mid && mid !== e.id) reportsToManagerIds.add(mid);
+  }
+
+  const reportingTargetIds = new Set<string>();
+  for (const e of rows) {
+    const rid = e.reporting_to_employee_id ?? null;
+    if (typeof rid === "string" && rid.length > 0 && rid !== e.id) {
+      reportingTargetIds.add(rid);
+    }
+  }
+
+  const idsForNameLookup = new Set<string>([
+    ...reportsToManagerIds,
+    ...reportingTargetIds,
+  ]);
+
+  let employeeIdToDisplayName = new Map<string, string>();
+  if (idsForNameLookup.size > 0) {
+    const { data: mgrRows, error: mgrErr } = await access.supabase
+      .from("employees")
+      .select("id, name")
+      .eq("org_id", access.orgId)
+      .in("id", [...idsForNameLookup]);
+    if (mgrErr) {
+      throw new Error(mgrErr.message);
+    }
+    employeeIdToDisplayName = new Map(
+      (mgrRows ?? []).map((r) => [r.id as string, r.name as string]),
+    );
+  }
   const departments = (departmentRes.data ?? []) as Pick<DepartmentRow, "id" | "name">[];
 
   // Build form token lookup for active review cycle
@@ -186,6 +229,23 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
 
   const enriched: EmployeeListRow[] = rows.map((employee) => {
     const member = accessByEmployee.get(employee.id);
+    const tn = employee.team_name?.trim() ?? "";
+    const mgrId = tn ? managerIdByTeamName.get(tn) : undefined;
+
+    let reportsToName: string | null = null;
+    const reportingId = employee.reporting_to_employee_id ?? null;
+    if (
+      typeof reportingId === "string" &&
+      reportingId.length > 0 &&
+      reportingId !== employee.id
+    ) {
+      reportsToName =
+        employeeIdToDisplayName.get(reportingId) ?? null;
+    }
+    if (reportsToName === null && mgrId && mgrId !== employee.id) {
+      reportsToName =
+        employeeIdToDisplayName.get(mgrId) ?? null;
+    }
     return {
       ...employee,
       achievement_count: achievementsByEmployee.get(employee.id) ?? 0,
@@ -194,7 +254,9 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
       is_team_lead: leadEmployeeIds.has(employee.id),
       access_role: (member?.role as string | null) ?? null,
       access_invited_at: (member?.invited_at as string | null) ?? null,
+      access_joined_at: (member?.joined_at as string | null) ?? null,
       review_form_token: formTokenByEmployee.get(employee.id) ?? null,
+      reports_to_name: reportsToName,
     };
   });
 

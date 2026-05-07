@@ -64,7 +64,7 @@ export default async function WorkspaceAchievementsPage(): Promise<ReactElement 
               return (
                 <li key={row.id}>
                   <Link
-                    href={`/employees/${row.employee_id}/insights?tab=achievements`}
+                    href={`/employees/${row.employee_id}/insights`}
                     className="hover:bg-muted/48 block px-4 py-4 transition-colors md:px-5"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">

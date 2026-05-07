@@ -42,6 +42,8 @@ export interface WorkspaceMemberRow {
   user_id: string;
   role: UserRole;
   employee_id: string | null;
+  invited_at?: string | null;
+  joined_at?: string | null;
   created_at: string;
 }
 
@@ -50,6 +52,8 @@ export interface EmployeeRow {
   org_id: string;
   /** Company-facing employee identifier (not the UUID). */
   employee_code?: string | null;
+  /** Direct manager in the HR directory (separate from team record manager). */
+  reporting_to_employee_id?: string | null;
   /** Resigned / inactive employees (kept for history). */
   is_active?: boolean | null;
   name: string;

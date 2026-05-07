@@ -40,11 +40,18 @@ function normalizeHeader(h: string): string {
 const HEADER_ALIASES: Record<keyof Omit<ParsedRow, "rowNumber">, string[]> = {
   name: ["name", "employee_name"],
   email: ["email", "email_id", "mail"],
-  employee_code: ["employee_code", "employee_id", "emp_id", "employeeid", "empid"],
+  employee_code: [
+    "employee_code",
+    "employee_id",
+    "emp_id",
+    "employeeid",
+    "empid",
+    "company_employee_id",
+  ],
   is_active: ["is_active", "active", "status", "employee_status"],
-  role: ["role", "title", "designation"],
+  role: ["role", "title", "designation", "position", "job_title"],
   department: ["department", "dept", "function"],
-  team_name: ["team_name", "team", "teamname"],
+  team_name: ["team_name", "team", "teamname", "squad"],
   join_date: ["join_date", "joining_date", "joindate", "joiningdate"],
 };
 
@@ -113,7 +120,7 @@ function validateRow(row: ParsedRow): string | null {
   if (!row.name.trim()) return "Name is required.";
   const email = row.email.trim();
   if (!email) return "Email is required.";
-  if (!row.employee_code?.trim()) return "Employee ID is required.";
+  if (!row.employee_code?.trim()) return "Employee ID / employee_code is required.";
   // simple client-side email check; server does authoritative validation
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Email looks invalid.";
   if (row.join_date && row.join_date.trim().length > 0) {
@@ -301,15 +308,32 @@ export function ImportEmployeesDialog({
           <DialogHeader>
             <DialogTitle>Import employees</DialogTitle>
             <DialogDescription>
-              Upload a CSV with columns:{" "}
-              <span className="font-medium">employee_id</span> (required),{" "}
-              <span className="font-medium">name</span>,{" "}
-              <span className="font-medium">email</span>,{" "}
-              <span className="font-medium">role</span> (optional),{" "}
-              <span className="font-medium">department</span> (optional),{" "}
-              <span className="font-medium">team</span> (optional),{" "}
-              <span className="font-medium">join_date</span> (optional, YYYY-MM-DD),{" "}
-              <span className="font-medium">status</span> (optional: active/inactive).
+              <span className="text-muted-foreground block leading-relaxed">
+                Required columns:{" "}
+                <span className="text-foreground font-medium">
+                  employee_code
+                </span>
+                , <span className="text-foreground font-medium">name</span>,
+                {""}
+                <span className="text-foreground font-medium">email</span>.
+                Optional:{" "}
+                <span className="font-medium">role</span> (aliases: position,
+                title),
+                {""}
+                <span className="font-medium">department</span>,
+                {""}
+                <span className="font-medium">team_name</span> (must exist under
+                Organisation; match is case-insensitive),
+                {""}
+                <span className="font-medium">join_date</span> (YYYY-MM-DD),{" "}
+                <span className="font-medium">is_active</span>{" "}
+                (true/false/active/inactive). When{" "}
+                <span className="font-medium">team_name</span> matches a team,
+                the row gets that team&apos;s department and Reports to is set
+                from the manager on that team record (if configured). Rows
+                without a team do not get a Reports to line via import. Workspace
+                access (invite as Manager / TL) is manual only after import.
+              </span>
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -425,57 +449,67 @@ export function ImportEmployeesDialog({
                 Preview (first {previewRows.length})
               </div>
               <div className="max-h-[220px] overflow-auto">
-                <div className="min-w-[840px]">
+                <div className="min-w-[760px]">
                   <div
-                    className="grid bg-muted/20 text-xs font-semibold text-muted-foreground"
+                    className="grid bg-muted/20 text-[11px] font-semibold text-muted-foreground"
                     style={{
                       gridTemplateColumns:
-                        "70px 180px 240px 160px 150px 150px 120px",
+                        "48px 88px minmax(100px,1fr) minmax(132px,1.3fr) 88px minmax(72px,0.95fr) minmax(72px,0.95fr) 80px",
                     }}
                   >
-                    {["Row", "Name", "Email", "Role", "Department", "Team", "Join"].map(
-                      (h, idx) => (
-                        <div
-                          key={h}
-                          className={cn(
-                            "px-3 py-2 border-b border-border/60",
-                            idx < 6 ? "border-r border-border/60" : null,
-                          )}
-                        >
-                          {h}
-                        </div>
-                      ),
-                    )}
+                    {[
+                      "Row",
+                      "Emp ID",
+                      "Name",
+                      "Email",
+                      "Role",
+                      "Dept",
+                      "Team",
+                      "Join",
+                    ].map((h, idx) => (
+                      <div
+                        key={h}
+                        className={cn(
+                          "px-2 py-2 border-b border-border/60",
+                          idx < 7 ? "border-r border-border/60" : null,
+                        )}
+                      >
+                        {h}
+                      </div>
+                    ))}
                   </div>
                   {previewRows.map((r) => (
                     <div
                       key={r.rowNumber}
-                      className="grid text-xs"
+                      className="grid text-[11px]"
                       style={{
                         gridTemplateColumns:
-                          "70px 180px 240px 160px 150px 150px 120px",
+                          "48px 88px minmax(100px,1fr) minmax(132px,1.3fr) 88px minmax(72px,0.95fr) minmax(72px,0.95fr) 80px",
                       }}
                     >
-                      <div className="px-3 py-2 border-b border-r border-border/60 tabular-nums text-muted-foreground">
+                      <div className="px-2 py-2 border-b border-r border-border/60 tabular-nums text-muted-foreground">
                         {r.rowNumber}
                       </div>
-                      <div className="px-3 py-2 border-b border-r border-border/60 truncate">
+                      <div className="px-2 py-2 border-b border-r border-border/60 truncate font-mono tabular-nums">
+                        {(r.employee_code ?? "").trim() || "—"}
+                      </div>
+                      <div className="px-2 py-2 border-b border-r border-border/60 truncate">
                         {r.name || "—"}
                       </div>
-                      <div className="px-3 py-2 border-b border-r border-border/60 truncate text-muted-foreground">
+                      <div className="text-muted-foreground px-2 py-2 border-b border-r border-border/60 truncate">
                         {r.email || "—"}
                       </div>
-                      <div className="px-3 py-2 border-b border-r border-border/60 truncate">
+                      <div className="px-2 py-2 border-b border-r border-border/60 truncate">
                         {r.role || "—"}
                       </div>
-                      <div className="px-3 py-2 border-b border-r border-border/60 truncate">
+                      <div className="px-2 py-2 border-b border-r border-border/60 truncate">
                         {r.department || "—"}
                       </div>
-                      <div className="px-3 py-2 border-b border-r border-border/60 truncate">
+                      <div className="px-2 py-2 border-b border-r border-border/60 truncate">
                         {r.team_name || "—"}
                       </div>
-                      <div className="px-3 py-2 border-b border-border/60 truncate text-muted-foreground">
-                        {r.join_date || "—"}
+                      <div className="text-muted-foreground px-2 py-2 border-b border-border/60 truncate">
+                        {(r.join_date ?? "").trim() || "—"}
                       </div>
                     </div>
                   ))}

@@ -127,9 +127,15 @@ export default async function CycleDetailPage({
     }
   }
 
-  const { data: selfReviews } = await selfReviewQuery.order("created_at", {
+  const { data: selfReviewsRaw } = await selfReviewQuery.order("created_at", {
     ascending: true,
   });
+
+  // Managers/TLs should not see their own self-review row in the cycle
+  // (they manage their team, not review themselves from this view)
+  const selfReviews = access.employeeId && isScoped
+    ? (selfReviewsRaw ?? []).filter((r) => r.employee_id !== access.employeeId)
+    : selfReviewsRaw;
 
   // Load teams for the "Send to all" team filter
   const { data: teamsData } = await access.supabase
@@ -306,12 +312,18 @@ export default async function CycleDetailPage({
                     <Link
                       href={`/reviews/${cycleId}/${emp.id}`}
                       className={buttonVariants({
-                        variant: canReview ? "default" : "outline",
+                        variant: canReview && !remark ? "default" : "outline",
                         size: "sm",
                         className: "shrink-0 text-xs",
                       })}
                     >
-                      {remark ? "View / Edit" : canReview ? "Review →" : "View"}
+                      {remark?.status === "approved"
+                        ? "View"
+                        : remark
+                          ? "View / Edit"
+                          : canReview
+                            ? "Review →"
+                            : "View"}
                     </Link>
                   </div>
                 );

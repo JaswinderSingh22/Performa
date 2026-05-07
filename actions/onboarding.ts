@@ -59,6 +59,7 @@ export async function completeOnboarding(
       org_id: org.id,
       user_id: user.id,
       role: "admin",
+      joined_at: new Date().toISOString(),
     }),
   ]);
 
@@ -129,6 +130,13 @@ export async function completeProfileSetup(
 
   if (profileErr) {
     return { ok: false as const, error: profileErr.message };
+  }
+
+  const { error: joinErr } = await supabase.rpc("mark_own_workspace_joined", {
+    p_org_id: parsed.data.orgId,
+  });
+  if (joinErr && process.env.NODE_ENV === "development") {
+    console.warn("[completeProfileSetup] mark_own_workspace_joined:", joinErr.message);
   }
 
   const cookieStore = await cookies();

@@ -212,7 +212,8 @@ export function AppSidebar({
   const expanded = !collapsed || (hovering && Date.now() - lastToggleAtRef.current > 350);
 
   const isAdminLike = workspaceRole === "admin" || workspaceRole === "hr";
-  const showOverview = isAdminLike;
+  const showOverview =
+    isAdminLike || workspaceRole === "manager" || workspaceRole === "tl";
   const showAdmin = isAdminLike;
   const showOrg = isAdminLike;
   const showReviews = true; // all roles can see reviews

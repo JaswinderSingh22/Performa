@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { getEffectivePlanFromOrg } from "@/lib/billing/getBillingState";
 import { getOrgAccess } from "@/lib/org-context";
 import {
   getMaxEmployees,
@@ -10,7 +11,6 @@ import {
   normalizePlan,
   planLabel,
 } from "@/lib/plans";
-import { getEffectivePlanFromOrg } from "@/lib/billing/getBillingState";
 import { isUniqueViolation } from "@/types/database";
 
 const importEmployeeRowSchema = z.object({
@@ -62,6 +62,13 @@ export async function importEmployeesFromCsv(
   const access = await getOrgAccess();
   if (!access) {
     return { ok: false, error: "We could not load your workspace." };
+  }
+
+  if (access.role !== "admin" && access.role !== "hr") {
+    return {
+      ok: false,
+      error: "Only Admin or HR can import employees from CSV.",
+    };
   }
 
   const { data: orgRow } = await access.supabase
@@ -143,6 +150,7 @@ export async function importEmployeesFromCsv(
 
   for (const row of parsed.data.rows) {
     const email = row.email.trim().toLowerCase();
+
     if (emailSet.has(email)) {
       skippedDuplicates += 1;
       skipped.push({
@@ -194,18 +202,62 @@ export async function importEmployeesFromCsv(
             isActiveRaw === "resigned"
           );
 
+    const teamRaw = row.team_name?.trim() ?? "";
+    const deptRaw = row.department?.trim() ?? "";
+    let resolvedTeamName = "";
+    let resolvedDepartment = "";
+    let reportingToId: string | null = null;
+
+    if (teamRaw.length > 0) {
+      const { data: matchedTeam, error: teamErr } = await access.supabase
+        .from("teams")
+        .select("name, manager_employee_id, departments(name)")
+        .eq("org_id", access.orgId)
+        .ilike("name", teamRaw)
+        .maybeSingle();
+
+      if (teamErr || !matchedTeam) {
+        errors.push({
+          rowNumber: row.rowNumber,
+          email,
+          error: `Team "${teamRaw}" was not found. Create it under Organisation → Teams first (names are matched ignoring case).`,
+        });
+        continue;
+      }
+
+      resolvedTeamName = (matchedTeam.name as string).trim();
+      const deptRel = matchedTeam.departments as
+        | { name?: string }
+        | { name?: string }[]
+        | null;
+      resolvedDepartment =
+        (
+          Array.isArray(deptRel)
+            ? (deptRel[0]?.name ?? "")
+            : (deptRel?.name ?? "")
+        ).trim() ?? "";
+
+      const mid = matchedTeam.manager_employee_id as string | null | undefined;
+      if (mid && typeof mid === "string") {
+        reportingToId = mid;
+      }
+    } else if (deptRaw.length > 0) {
+      resolvedDepartment = deptRaw;
+    }
+
     const { data: inserted, error: insErr } = await access.supabase
       .from("employees")
       .insert({
         org_id: access.orgId,
         name: row.name.trim(),
         email,
-        employee_code: row.employee_code.trim(),
+        employee_code: employeeCode.trim(),
         is_active: isActive,
         role: row.role?.trim() ?? "",
-        department: row.department?.trim() ?? "",
-        team_name: row.team_name?.trim() ?? "",
+        department: resolvedDepartment,
+        team_name: resolvedTeamName,
         join_date: row.join_date ?? null,
+        reporting_to_employee_id: reportingToId,
       })
       .select("id, email, employee_code")
       .single();
@@ -231,17 +283,20 @@ export async function importEmployeesFromCsv(
     if (inserted?.id && inserted?.email) {
       existingEmailToId.set(inserted.email.trim().toLowerCase(), inserted.id);
     }
+
     if (inserted?.id && inserted?.employee_code?.trim()) {
       const code = inserted.employee_code.trim();
       existingCodeToId.set(code, inserted.id);
       codeSet.add(code);
-    } else if (employeeCode) {
-      codeSet.add(employeeCode);
+    } else if (employeeCode.trim() && inserted?.id) {
+      const code = employeeCode.trim();
+      existingCodeToId.set(code, inserted.id);
+      codeSet.add(code);
     }
+
     if (!isUnlimitedLimit(seatCap)) remainingSeats -= 1;
   }
 
   revalidateEmployeeSurfaces();
   return { ok: true, created, skippedDuplicates, skipped, errors };
 }
-

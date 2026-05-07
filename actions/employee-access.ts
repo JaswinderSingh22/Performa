@@ -184,6 +184,16 @@ export async function inviteEmployeeToWorkspace(
     .eq("employee_id", employee.id)
     .maybeSingle();
   if (existingLink?.user_id) {
+    const { data: wm } = await admin
+      .from("workspace_members")
+      .select("joined_at")
+      .eq("org_id", access.orgId)
+      .eq("user_id", existingLink.user_id)
+      .maybeSingle();
+
+    const joinedAt =
+      (wm?.joined_at as string | null | undefined) ?? new Date().toISOString();
+
     const { error: updateErr } = await admin.from("workspace_members").upsert({
       org_id: access.orgId,
       user_id: existingLink.user_id,
@@ -191,6 +201,7 @@ export async function inviteEmployeeToWorkspace(
       employee_id: employee.id,
       invited_at: new Date().toISOString(),
       invited_by: actorId,
+      joined_at: joinedAt,
     });
     if (updateErr) return { ok: false, error: updateErr.message };
 
@@ -215,8 +226,12 @@ export async function inviteEmployeeToWorkspace(
   let invitedUserId = inviteRes.data?.user?.id ?? null;
   const inviteErr = inviteRes.error?.message ?? "";
 
+  let seedJoinedAt: string | undefined;
   if (!invitedUserId) {
     invitedUserId = await lookupAuthUserByEmail(email);
+    if (invitedUserId) {
+      seedJoinedAt = new Date().toISOString();
+    }
     if (!invitedUserId) {
       return { ok: false, error: inviteErr || "Could not find or invite user." };
     }
@@ -237,6 +252,7 @@ export async function inviteEmployeeToWorkspace(
     employee_id: employee.id,
     invited_at: new Date().toISOString(),
     invited_by: actorId,
+    ...(seedJoinedAt ? { joined_at: seedJoinedAt } : {}),
   });
 
   if (memberErr) return { ok: false, error: memberErr.message };

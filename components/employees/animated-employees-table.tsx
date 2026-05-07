@@ -38,11 +38,67 @@ export type EmployeeListRow = EmployeeRow & {
   is_team_lead?: boolean;
   access_role?: string | null;
   access_invited_at?: string | null;
+  access_joined_at?: string | null;
   /** Form token from the currently open review cycle, if any */
   review_form_token?: string | null;
+  /** Team manager name from teams.manager_employee_id */
+  reports_to_name?: string | null;
 };
 
 const MotionRow = motion.create("div");
+
+function workspaceRoleLabel(role: string): string {
+  switch (role) {
+    case "tl":
+      return "TL";
+    case "hr":
+      return "HR";
+    case "admin":
+      return "Org";
+    default:
+      return "Mgr";
+  }
+}
+
+function AccessCell({ employee }: { employee: EmployeeListRow }): ReactElement {
+  const hasLead = employee.is_team_lead === true;
+  const wsRole = employee.access_role ?? null;
+  const pendingWorkspaceJoin = Boolean(
+    wsRole &&
+      employee.access_invited_at &&
+      !employee.access_joined_at,
+  );
+
+  if (!hasLead && !wsRole) {
+    return <span className="text-muted-foreground text-xs">—</span>;
+  }
+
+  return (
+    <div className="text-foreground flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] leading-snug">
+      {hasLead ? (
+        <span
+          className="bg-emerald-500/[0.13] shrink-0 rounded px-1.5 py-0.5 font-semibold text-emerald-900 dark:text-emerald-300"
+          title="Team record lists them as manager"
+        >
+          Lead
+        </span>
+      ) : null}
+      {wsRole ? (
+        <span className="border-border/55 bg-muted/35 shrink-0 rounded border px-1.5 py-0.5 font-semibold tracking-tight text-muted-foreground">
+          {workspaceRoleLabel(wsRole)}
+        </span>
+      ) : null}
+      {pendingWorkspaceJoin ? (
+        <span
+          className="border-amber-500/35 bg-amber-500/[0.08] shrink-0 rounded border px-1.5 py-0.5 font-medium text-amber-800 dark:text-amber-400"
+          title="No successful sign-in recorded for this workspace invite yet"
+        >
+          Pending
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
 function CountBadge({ value }: { value: number }): ReactElement {
   return (
@@ -80,6 +136,7 @@ function ReviewInviteDialog({
   const [copied, setCopied] = React.useState(false);
   const [emailSending, setEmailSending] = React.useState(false);
   const [emailSent, setEmailSent] = React.useState(false);
+  const [emailSentCount, setEmailSentCount] = React.useState(1);
   const [emailError, setEmailError] = React.useState<string | null>(null);
 
   function copyLink() {
@@ -95,6 +152,7 @@ function ReviewInviteDialog({
     const result = await sendReviewEmailAction(employee.id);
     setEmailSending(false);
     if (result.success) {
+      setEmailSentCount(result.cyclesSent ?? 1);
       setEmailSent(true);
       setTimeout(() => setEmailSent(false), 4000);
     } else {
@@ -167,7 +225,7 @@ function ReviewInviteDialog({
               ) : emailSent ? (
                 <>
                   <CheckIcon className="size-4" />
-                  Email sent!
+                  {emailSentCount > 1 ? `Sent ${emailSentCount} emails!` : "Email sent!"}
                 </>
               ) : (
                 <>
@@ -471,18 +529,21 @@ function EmployeeRow({
         </div>
       </div>
 
-      {/* Access */}
-      <div className="px-3 py-3 text-left border-r border-border/60">
-        <div className="flex flex-wrap gap-1">
-          {employee.is_team_lead && <span className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold">Lead</span>}
-          {employee.access_role && (
-            <span className="border-border/60 bg-muted/40 text-foreground inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold">
-              {employee.access_role === "tl" ? "TL" : employee.access_role === "hr" ? "HR" : employee.access_role === "admin" ? "Org" : "Mgr"}
-              {employee.access_invited_at && <span className="text-muted-foreground font-medium">· invited</span>}
-            </span>
-          )}
-          {!employee.is_team_lead && !employee.access_role && <span className="text-muted-foreground text-xs">—</span>}
-        </div>
+      {/* Reports to */}
+      <div
+        className="border-border/60 px-3 py-3 text-left border-r"
+        title={employee.reports_to_name?.trim() || undefined}
+      >
+        {employee.reports_to_name?.trim() ? (
+          <span className="text-foreground line-clamp-2 text-xs font-medium leading-snug">{employee.reports_to_name}</span>
+        ) : (
+          <span className="text-muted-foreground text-xs">—</span>
+        )}
+      </div>
+
+      {/* Access — narrow column; chips wrap tightly */}
+      <div className="border-border/60 flex min-h-10 min-w-0 max-w-[10.25rem] items-start border-r px-2 py-2">
+        <AccessCell employee={employee} />
       </div>
 
       {/* Email */}
@@ -595,6 +656,7 @@ export function AnimatedEmployeesTable({
         employee.role,
         employee.department,
         employee.team_name ?? "",
+        employee.reports_to_name ?? "",
       ]
         .join(" ")
         .toLowerCase();
@@ -678,9 +740,9 @@ export function AnimatedEmployeesTable({
     router.refresh();
   }
 
-  // Grid columns: checkbox | S.No | EmpID | Name | Access | Email | Position | Dept | Team | Joined | Ach | Rev | Notes | Actions
+  // Grid columns: checkbox | S.No | EmpID | Name | Reports to | Access | Email | Position | Dept | Team | Joined | Ach | Rev | Notes | Actions
   const gridCols =
-    "44px 56px 150px 180px 140px 150px 220px 150px 140px 140px 90px 90px 90px 110px";
+    "36px 40px 100px minmax(120px, 1fr) 108px 124px minmax(128px, 200px) minmax(112px, 180px) minmax(92px, 140px) minmax(80px, 120px) 88px 72px 72px 72px 92px";
 
   return (
     <motion.div
@@ -699,7 +761,7 @@ export function AnimatedEmployeesTable({
             id="employee-table-search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search name, email, role, team..."
+            placeholder="Search name, email, manager, role, team..."
             className="h-8 min-w-[220px] md:min-w-[280px]"
           />
         </div>
@@ -860,6 +922,7 @@ export function AnimatedEmployeesTable({
                 "S.No",
                 "Employee ID",
                 "Name",
+                "Reports to",
                 "Access",
                 "Email",
                 "Position",
@@ -875,7 +938,7 @@ export function AnimatedEmployeesTable({
                   key={h}
                   className={cn(
                     "px-3 py-2 text-left border-r border-border/60",
-                    idx === 12 && "border-r-0",
+                    idx === 13 && "border-r-0",
                   )}
                 >
                   {h}

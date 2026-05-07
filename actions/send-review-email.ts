@@ -11,12 +11,13 @@ export type SendResult = {
 };
 
 /**
- * Send a review form email to a single employee.
+ * Send review form email(s) to a single employee.
+ * If the employee has multiple open cycles pending, sends one email per cycle.
  * Allowed for: admin, hr, manager, tl
  */
 export async function sendReviewEmailAction(
   employeeId: string,
-): Promise<SendResult> {
+): Promise<SendResult & { cyclesSent?: number }> {
   const access = await getOrgAccess();
   if (!access) return { success: false, error: "Not authenticated." };
 
@@ -25,37 +26,9 @@ export async function sendReviewEmailAction(
     return { success: false, error: "You don't have permission to send review invites." };
   }
 
-  // Use service role to bypass RLS for reading cycle/review data
   const admin = createServiceRoleSupabase();
 
-  // Find the open cycle's self-review for this employee
-  const { data: selfReview } = await admin
-    .from("employee_self_reviews")
-    .select("form_token, review_cycle_id, status")
-    .eq("employee_id", employeeId)
-    .eq("org_id", access.orgId)
-    .eq("status", "pending")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!selfReview?.form_token) {
-    return { success: false, error: "No active review form found for this employee. The employee may have already submitted." };
-  }
-
-  // Fetch cycle info
-  const { data: cycle } = await admin
-    .from("review_cycles")
-    .select("title, self_review_due, status")
-    .eq("id", selfReview.review_cycle_id)
-    .eq("org_id", access.orgId)
-    .maybeSingle();
-
-  if (!cycle || cycle.status === "closed") {
-    return { success: false, error: "Review cycle is closed or not found." };
-  }
-
-  // Get employee email
+  // Get employee details
   const { data: employee } = await admin
     .from("employees")
     .select("name, email")
@@ -67,15 +40,53 @@ export async function sendReviewEmailAction(
     return { success: false, error: "Employee email not found." };
   }
 
-  const result = await sendReviewFormEmail({
-    to: employee.email,
-    employeeName: employee.name,
-    cycleTitle: (cycle.title as string) ?? "Performance Review",
-    formToken: selfReview.form_token,
-    deadline: cycle.self_review_due as string | null,
-  });
+  // Find ALL pending self-reviews for this employee (could be multiple open cycles)
+  const { data: selfReviews } = await admin
+    .from("employee_self_reviews")
+    .select("form_token, review_cycle_id")
+    .eq("employee_id", employeeId)
+    .eq("org_id", access.orgId)
+    .eq("status", "pending");
 
-  return { ...result, employeeName: employee.name };
+  if (!selfReviews || selfReviews.length === 0) {
+    return { success: false, error: "No pending review forms found for this employee. They may have already submitted all reviews.", employeeName: employee.name };
+  }
+
+  // Fetch cycle info for each pending review
+  const cycleIds = selfReviews.map((r) => r.review_cycle_id as string);
+  const { data: cycles } = await admin
+    .from("review_cycles")
+    .select("id, title, self_review_due, status")
+    .in("id", cycleIds)
+    .eq("org_id", access.orgId)
+    .eq("status", "open");
+
+  if (!cycles || cycles.length === 0) {
+    return { success: false, error: "No open cycles found for this employee.", employeeName: employee.name };
+  }
+
+  const cycleMap = new Map(cycles.map((c) => [c.id as string, c]));
+  let cyclesSent = 0;
+  const errs: string[] = [];
+
+  for (const sr of selfReviews) {
+    const cycle = cycleMap.get(sr.review_cycle_id as string);
+    if (!cycle || !sr.form_token) continue;
+    const result = await sendReviewFormEmail({
+      to: employee.email,
+      employeeName: employee.name,
+      cycleTitle: (cycle.title as string) ?? "Performance Review",
+      formToken: sr.form_token as string,
+      deadline: cycle.self_review_due as string | null,
+    });
+    if (result.success) cyclesSent++;
+    else errs.push(result.error ?? "Unknown error");
+  }
+
+  if (cyclesSent === 0) {
+    return { success: false, error: errs.join("; "), employeeName: employee.name };
+  }
+  return { success: true, employeeName: employee.name, cyclesSent };
 }
 
 /**

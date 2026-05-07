@@ -27,6 +27,15 @@ export default async function DashboardRouteGroupLayout({
         .maybeSingle()
     : { data: null };
 
+  if (user && access.orgId) {
+    const { error: joinErr } = await access.supabase.rpc("mark_own_workspace_joined", {
+      p_org_id: access.orgId,
+    });
+    if (joinErr && process.env.NODE_ENV === "development") {
+      console.warn("[dashboard layout] mark_own_workspace_joined:", joinErr.message);
+    }
+  }
+
   const workspaceRole = (membership?.role as UserRole | null) ?? null;
   const { data: org } = await access.supabase
     .from("organizations")

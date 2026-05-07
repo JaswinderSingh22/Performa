@@ -40,6 +40,10 @@ export default async function OnboardingPage() {
       email: user.email ?? null,
     });
 
+    await supabase.rpc("mark_own_workspace_joined", {
+      p_org_id: membership.org_id as string,
+    });
+
     const cookieStore = await cookies();
     cookieStore.set("active_org_id", membership.org_id as string, {
       path: "/",
