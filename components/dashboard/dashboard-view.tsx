@@ -225,7 +225,7 @@ export function DashboardView({
                 <Card
                   size="sm"
                   className={cn(
-                    "border-border/70 shadow-primary/10 hover:border-primary/15 from-card transition-[box-shadow,border-color] hover:shadow-lg",
+                    "border-border/70 shadow-primary/10 hover:border-primary/15 from-card ring-1 ring-black/[0.04] transition-[box-shadow,border-color] hover:shadow-lg",
                     "bg-gradient-to-br to-transparent",
                     card.accent,
                   )}
@@ -268,7 +268,7 @@ export function DashboardView({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.48, ease: easingOut, delay: prefersReducedMotion ? 0 : 0.04 }}
           >
-            <Card className="border-border/70 h-full shadow-md">
+            <Card className="border-border/70 h-full shadow-md ring-1 ring-black/[0.04]">
               <CardHeader className="border-border/60 border-b">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -332,7 +332,7 @@ export function DashboardView({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.48, ease: easingOut, delay: prefersReducedMotion ? 0 : 0.08 }}
           >
-            <Card className="border-border/70 h-full shadow-md">
+            <Card className="border-border/70 h-full shadow-md ring-1 ring-black/[0.04]">
               <CardHeader className="border-border/60 border-b">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -394,7 +394,7 @@ export function DashboardView({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.48, ease: easingOut, delay: prefersReducedMotion ? 0 : 0.1 }}
           >
-            <Card className="border-border/70 shadow-md">
+            <Card className="border-border/70 shadow-md ring-1 ring-black/[0.04]">
               <CardHeader className="border-border/60 border-b">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -471,7 +471,7 @@ export function DashboardView({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.48, ease: easingOut, delay: prefersReducedMotion ? 0 : 0.14 }}
           >
-            <Card className="border-border/70 shadow-md">
+            <Card className="border-border/70 shadow-md ring-1 ring-black/[0.04]">
               <CardHeader className="border-border/60 border-b">
                 <CardTitle>{teamDash ? "Team roster health" : "People & directory health"}</CardTitle>
                 <CardDescription>
@@ -547,7 +547,7 @@ export function DashboardView({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.48, ease: easingOut, delay: prefersReducedMotion ? 0 : 0.18 }}
           >
-            <Card className="border-border/70 flex h-full flex-col shadow-md">
+            <Card className="border-border/70 flex h-full flex-col shadow-md ring-1 ring-black/[0.04]">
               <CardHeader className="border-border/60 border-b">
                 <CardTitle>Where to work next</CardTitle>
                 <CardDescription>
@@ -602,7 +602,7 @@ export function DashboardView({
               delay: prefersReducedMotion ? 0 : 0.2,
             }}
           >
-            <Card className="border-border/70 flex h-full flex-col shadow-md">
+            <Card className="border-border/70 flex h-full flex-col shadow-md ring-1 ring-black/[0.04]">
               <CardHeader className="border-border/60 border-b">
                 <CardTitle>Team footprint</CardTitle>
                 <CardDescription>
@@ -659,7 +659,7 @@ export function DashboardView({
               delay: prefersReducedMotion ? 0 : 0.22,
             }}
           >
-            <Card className="border-border/70 flex h-full flex-col shadow-md">
+            <Card className="border-border/70 flex h-full flex-col shadow-md ring-1 ring-black/[0.04]">
               <CardHeader className="border-border/60 border-b">
                 <CardTitle>Department footprint</CardTitle>
                 <CardDescription>
@@ -717,7 +717,7 @@ export function DashboardView({
             delay: prefersReducedMotion ? 0 : 0.28,
           }}
         >
-          <Card className="border-border/70 shadow-md">
+          <Card className="border-border/70 shadow-md ring-1 ring-black/[0.04]">
             <CardHeader className="border-border/60 flex flex-row flex-wrap items-start justify-between gap-3 border-b">
               <div>
                 <CardTitle>Recent review cycles</CardTitle>

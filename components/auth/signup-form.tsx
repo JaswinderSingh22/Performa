@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, ArrowRightIcon } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { signUpWithEmail } from "@/actions/auth";
@@ -80,9 +80,9 @@ export function SignupForm() {
 
   return (
     <motion.div {...cardMotion} className="w-full max-w-md">
-      <Card className="border-border/60 bg-card/90 ring-primary/[0.06] supports-[backdrop-filter]:bg-card/80 w-full rounded-2xl shadow-xl ring-1 shadow-black/[0.04] backdrop-blur-xl dark:shadow-black/30">
+      <Card className="border-border/70 w-full rounded-2xl border bg-card shadow-md ring-1 ring-black/[0.04] backdrop-blur-sm supports-[backdrop-filter]:bg-card/98">
         <CardHeader className="space-y-2 pb-2">
-          <CardTitle className="text-xl font-semibold tracking-tight">
+          <CardTitle className="font-heading text-2xl font-semibold tracking-tight">
             Create account
           </CardTitle>
           <CardDescription className="text-pretty">
@@ -110,7 +110,7 @@ export function SignupForm() {
                   variants={prefersReducedMotion ? undefined : staggerFieldItem}
                   className="space-y-2"
                 >
-                  <p className="bg-muted/50 border-primary/10 rounded-xl border px-3 py-2.5 text-sm leading-relaxed">
+                  <p className="bg-muted/50 border-primary/15 rounded-xl border px-3 py-2.5 text-sm leading-relaxed">
                     {info}
                   </p>
                 </motion.div>
@@ -136,7 +136,7 @@ export function SignupForm() {
                   type="text"
                   autoComplete="name"
                   required
-                  className="focus-visible:ring-primary/25 rounded-xl transition-shadow duration-200"
+                  className="rounded-xl focus-visible:ring-primary/30"
                 />
               </motion.div>
               <motion.div
@@ -150,7 +150,7 @@ export function SignupForm() {
                   type="email"
                   autoComplete="email"
                   required
-                  className="focus-visible:ring-primary/25 rounded-xl transition-shadow duration-200"
+                  className="rounded-xl focus-visible:ring-primary/30"
                 />
               </motion.div>
               <motion.div
@@ -165,7 +165,7 @@ export function SignupForm() {
                   autoComplete="new-password"
                   minLength={8}
                   required
-                  className="focus-visible:ring-primary/25 rounded-xl transition-shadow duration-200"
+                  className="rounded-xl focus-visible:ring-primary/30"
                 />
                 <p className="text-muted-foreground text-xs leading-relaxed">
                   At least 8 characters.
@@ -181,19 +181,20 @@ export function SignupForm() {
               <Button
                 type="submit"
                 disabled={pending}
-                className="w-full gap-2 rounded-xl shadow-sm sm:w-auto"
+                className="w-full gap-2 rounded-xl sm:w-auto"
               >
                 {pending ? (
                   <Loader2Icon className="size-4 animate-spin" />
                 ) : null}
                 Sign up
+                {!pending ? <ArrowRightIcon className="size-4" aria-hidden /> : null}
               </Button>
             </motion.div>
             <p className="text-muted-foreground text-center text-sm sm:text-right">
               Already joined?{" "}
               <Link
                 href="/login"
-                className="text-primary hover:text-primary/80 font-medium underline underline-offset-4 transition-colors"
+                className="text-primary hover:text-primary/85 font-medium underline-offset-4 transition-colors hover:underline"
               >
                 Sign in
               </Link>

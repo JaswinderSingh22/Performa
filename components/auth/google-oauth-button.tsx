@@ -97,7 +97,7 @@ export function GoogleOAuthButton({
         type="button"
         variant="outline"
         className={cn(
-          "border-border/80 bg-background hover:bg-muted/60 rounded-xl shadow-sm",
+          "rounded-xl border border-border/80 bg-background shadow-sm hover:bg-muted/60",
           fullWidth && "w-full",
           className,
         )}

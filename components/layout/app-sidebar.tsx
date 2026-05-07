@@ -116,7 +116,7 @@ function NavGroup({
   expanded: boolean;
 }): React.ReactElement {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       {expanded ? (
         <p className="text-muted-foreground px-2.5 text-[11px] font-semibold tracking-wider uppercase opacity-85">
           {title}
@@ -159,8 +159,8 @@ function NavGroup({
             >
               <span
                 className={cn(
-                  "grid size-8 shrink-0 place-items-center rounded-xl border border-border/55 shadow-sm",
-                  "bg-background/60",
+                  "relative grid size-8 shrink-0 place-items-center rounded-xl border border-border/55 shadow-sm",
+                  "bg-background/80",
                   iconWrapClass,
                   active && "border-primary/25 bg-primary/6",
                 )}
@@ -289,8 +289,8 @@ export function AppSidebar({
       <nav
         aria-label="Main"
         className={cn(
-          "flex flex-1 flex-col gap-5 overflow-y-auto pb-6",
-          expanded ? "p-3.5" : "px-2.5 pt-3.5",
+          "flex flex-1 flex-col gap-4 overflow-y-auto pb-6",
+          expanded ? "p-3" : "px-2.5 pt-3",
         )}
       >
         {showOverview ? (
