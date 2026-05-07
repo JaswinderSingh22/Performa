@@ -151,8 +151,8 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
   let inactiveEmployees = 0;
   let teamCount = 0;
   let departmentCount = 0;
-  let teams: TeamSlice[] = [];
-  let departments: DepartmentSlice[] = [];
+  const teams: TeamSlice[] = [];
+  const departments: DepartmentSlice[] = [];
   let unassignedTeam = 0;
   let unassignedDepartment = 0;
   let employeesTeamsErr = false;
@@ -366,8 +366,8 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
   }
 
   const openCycleProgress: OpenCycleProgress[] = [];
-  let reviewTotals: OrgReviewTotals = { submitted: 0, pending: 0, total: 0 };
-  let pipeline: ReviewPipeline = {
+  const reviewTotals: OrgReviewTotals = { submitted: 0, pending: 0, total: 0 };
+  const pipeline: ReviewPipeline = {
     needManagerInput: 0,
     awaitingApproval: 0,
     approved: 0,
