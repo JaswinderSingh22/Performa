@@ -7,7 +7,6 @@ import { motion, useReducedMotion } from "motion/react";
 import { EmployeeProfileActions } from "@/components/employees/employee-profile-actions";
 import { AchievementsPanel } from "@/components/employees/achievements-panel";
 import { EmployeeNotesPanel } from "@/components/employees/employee-notes-panel";
-import { ReviewsPanel } from "@/components/employees/reviews-panel";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,15 +15,14 @@ import type {
   AchievementRow,
   EmployeeNoteRow,
   EmployeeRow,
-  ReviewWithDimensions,
 } from "@/types/database";
 import { easingOut } from "@/lib/motion-variants";
 import { cn } from "@/lib/utils";
 
-export type ProfileTab = "achievements" | "notes" | "reviews";
+export type ProfileTab = "achievements" | "notes";
 
 function parseTab(raw: string | undefined): ProfileTab {
-  if (raw === "notes" || raw === "reviews" || raw === "achievements") {
+  if (raw === "notes" || raw === "achievements") {
     return raw;
   }
   return "achievements";
@@ -41,7 +39,6 @@ export function EmployeeProfileTabs({
   employee,
   achievements,
   notes,
-  reviews,
   teams,
   departments,
   initialTab,
@@ -50,7 +47,6 @@ export function EmployeeProfileTabs({
   employee: EmployeeRow;
   achievements: AchievementRow[];
   notes: EmployeeNoteRow[];
-  reviews: ReviewWithDimensions[];
   teams: { id: string; name: string }[];
   departments: { id: string; name: string }[];
   initialTab?: string;
@@ -58,9 +54,6 @@ export function EmployeeProfileTabs({
 }): ReactElement {
   const prefersReducedMotion = useReducedMotion() === true;
   const defaultTab = parseTab(initialTab);
-  const lockTitle = readOnly
-    ? "This employee is locked because your workspace is over the seat limit."
-    : undefined;
 
   const panelMotion = prefersReducedMotion
     ? {}
@@ -147,29 +140,6 @@ export function EmployeeProfileTabs({
               >
                 Insights
               </Link>
-              {readOnly ? (
-                <span
-                  className={cn(
-                    buttonVariants({ variant: "secondary", size: "sm" }),
-                    "rounded-lg shadow-sm no-underline cursor-not-allowed opacity-60",
-                  )}
-                  aria-disabled
-                  title={lockTitle}
-                >
-                  Roll-up review
-                </span>
-              ) : (
-                <Link
-                  href={`/employees/${employee.id}/generate-review`}
-                  className={cn(
-                    buttonVariants({ variant: "secondary", size: "sm" }),
-                    "rounded-lg shadow-sm no-underline",
-                  )}
-                  title="Combine notes, achievements, and prior reviews for a period"
-                >
-                  Roll-up review
-                </Link>
-              )}
               <EmployeeProfileActions
                 employee={employee}
                 teams={teams}
@@ -206,15 +176,6 @@ export function EmployeeProfileTabs({
                     ({notes.length})
                   </span>
                 </TabsTrigger>
-                <TabsTrigger
-                  value="reviews"
-                  className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg px-4"
-                >
-                  Reviews
-                  <span className="text-muted-foreground ml-1.5 hidden text-xs tabular-nums sm:inline">
-                    ({reviews.length})
-                  </span>
-                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -241,16 +202,6 @@ export function EmployeeProfileTabs({
                 </motion.div>
               </TabsContent>
 
-              <TabsContent value="reviews" keepMounted={false}>
-                <motion.div {...panelMotion}>
-                  <ReviewsPanel
-                    key={employee.id}
-                    employeeId={employee.id}
-                    reviews={reviews}
-                    readOnly={readOnly}
-                  />
-                </motion.div>
-              </TabsContent>
             </div>
           </Tabs>
         </Card>

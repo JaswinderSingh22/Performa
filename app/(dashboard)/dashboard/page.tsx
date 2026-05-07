@@ -1,42 +1,9 @@
 import type { ReactElement } from "react";
 
-import type {
-  OrgTopRanking,
-  RecentReviewRow,
-  TeamSlice,
-} from "@/components/dashboard/dashboard-view";
+import type { RecentCycleRow, TeamSlice } from "@/components/dashboard/dashboard-view";
 import { DashboardView } from "@/components/dashboard/dashboard-view";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { getOrgAccess } from "@/lib/org-context";
-
-type DbReviewEmbed = {
-  id: string;
-  title: string | null;
-  status: RecentReviewRow["status"];
-  rating: number | null;
-  created_at: string;
-  employee_id: string;
-  employees: { name: string } | { name: string }[] | null;
-};
-
-function embedEmployeeName(
-  rel: DbReviewEmbed["employees"],
-): string {
-  if (!rel) return "Employee";
-  if (Array.isArray(rel)) {
-    const n = rel[0]?.name;
-    return typeof n === "string" && n.trim() ? n : "Employee";
-  }
-  return rel.name?.trim() ? rel.name : "Employee";
-}
-
-type OrgRatedRow = {
-  rating: number;
-  employees:
-    | { name: string | null; team_name: string | null; department: string | null }
-    | { name: string | null; team_name: string | null; department: string | null }[]
-    | null;
-};
 
 export default async function DashboardPage(): Promise<ReactElement | null> {
   const access = await getOrgAccess();
@@ -47,11 +14,10 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
     employeeCountRes,
     teamCountRes,
     departmentCountRes,
-    reviewCountRes,
-    reviewsStatusRes,
+    cycleCountRes,
     employeesTeamsRes,
-    recentReviewsRes,
-    orgRatedRes,
+    recentCyclesRes,
+    openSelfReviewsRes,
   ] = await Promise.all([
     access.supabase
       .from("employees")
@@ -66,42 +32,28 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
       .select("id", { count: "exact", head: true })
       .eq("org_id", orgId),
     access.supabase
-      .from("reviews")
+      .from("review_cycles")
       .select("id", { count: "exact", head: true })
-      .eq("org_id", orgId),
-    access.supabase
-      .from("reviews")
-      .select("status, rating")
-      .eq("org_id", orgId),
+      .eq("org_id", orgId)
+      .in("status", ["open", "in_review"]),
     access.supabase.from("employees").select("team_name").eq("org_id", orgId),
     access.supabase
-      .from("reviews")
-      .select(
-        "id, title, status, rating, created_at, employee_id, employees ( name )",
-      )
+      .from("review_cycles")
+      .select("id, title, status, created_at")
       .eq("org_id", orgId)
       .order("created_at", { ascending: false })
       .limit(8),
     access.supabase
-      .from("reviews")
-      .select(`rating, employees ( name, team_name, department )`)
-      .eq("org_id", orgId)
-      .not("rating", "is", null),
+      .from("employee_self_reviews")
+      .select("status")
+      .eq("org_id", orgId),
   ]);
 
-  const employeeCount = employeeCountRes.error ? 0 : employeeCountRes.count ?? 0;
-  const teamCount = teamCountRes.error ? 0 : teamCountRes.count ?? 0;
-  const departmentCount = departmentCountRes.error ? 0 : departmentCountRes.count ?? 0;
-  const reviewCount = reviewCountRes.error ? 0 : reviewCountRes.count ?? 0;
+  const employeeCount = employeeCountRes.error ? 0 : (employeeCountRes.count ?? 0);
+  const teamCount = teamCountRes.error ? 0 : (teamCountRes.count ?? 0);
+  const departmentCount = departmentCountRes.error ? 0 : (departmentCountRes.count ?? 0);
+  const activeCycleCount = cycleCountRes.error ? 0 : (cycleCountRes.count ?? 0);
 
-  let ratedReviewCount = 0;
-  if (!reviewsStatusRes.error && reviewsStatusRes.data) {
-    for (const row of reviewsStatusRes.data) {
-      if (row.rating !== null && row.rating !== undefined) {
-        ratedReviewCount += 1;
-      }
-    }
-  }
   const teams: TeamSlice[] = [];
   if (!employeesTeamsRes.error && employeesTeamsRes.data) {
     const m = new Map<string, number>();
@@ -116,100 +68,71 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
     }
   }
 
-  const recentReviews: RecentReviewRow[] =
-    recentReviewsRes.error || !recentReviewsRes.data
-      ? []
-      : (recentReviewsRes.data as unknown as DbReviewEmbed[]).map((r) => ({
-          id: r.id,
-          employeeId: r.employee_id,
-          employeeName: embedEmployeeName(r.employees),
-          title: r.title,
-          status: r.status,
-          rating: r.rating,
-          createdAt: r.created_at,
-        }));
-
-  const ratedRows =
-    orgRatedRes.error || !orgRatedRes.data
-      ? []
-      : (orgRatedRes.data as unknown as OrgRatedRow[]);
-
-  const teamAgg = new Map<string, { sum: number; count: number }>();
-  const employeeAgg = new Map<string, { sum: number; count: number }>();
-  const departmentAgg = new Map<string, { sum: number; count: number }>();
-
-  for (const row of ratedRows) {
-    const rel = Array.isArray(row.employees) ? relFromArray(row.employees) : row.employees;
-    const team = rel?.team_name?.trim() || "Unassigned";
-    const employee = rel?.name?.trim() || "Unknown";
-    const department = rel?.department?.trim() || "Unassigned";
-    incrementAgg(teamAgg, team, row.rating);
-    incrementAgg(employeeAgg, employee, row.rating);
-    incrementAgg(departmentAgg, department, row.rating);
+  // Build recent cycles with submission counts
+  const recentCycles: RecentCycleRow[] = [];
+  if (!recentCyclesRes.error && recentCyclesRes.data) {
+    const cycleIds = recentCyclesRes.data.map((c) => c.id);
+    const submissionCounts: Record<string, { total: number; submitted: number }> = {};
+    if (cycleIds.length > 0) {
+      const { data: reviews } = await access.supabase
+        .from("employee_self_reviews")
+        .select("review_cycle_id, status")
+        .in("review_cycle_id", cycleIds);
+      if (reviews) {
+        for (const r of reviews) {
+          const cid = r.review_cycle_id as string;
+          if (!submissionCounts[cid]) submissionCounts[cid] = { total: 0, submitted: 0 };
+          submissionCounts[cid].total++;
+          if (r.status === "submitted" || r.status === "under_review" || r.status === "approved") {
+            submissionCounts[cid].submitted++;
+          }
+        }
+      }
+    }
+    for (const c of recentCyclesRes.data) {
+      const counts = submissionCounts[c.id] ?? { total: 0, submitted: 0 };
+      recentCycles.push({
+        id: c.id,
+        title: c.title ?? "Untitled cycle",
+        status: c.status as string,
+        totalEmployees: counts.total,
+        submitted: counts.submitted,
+        createdAt: c.created_at,
+      });
+    }
   }
 
-  const topTeams = toTopRankings(teamAgg, 3);
-  const topEmployees = toTopRankings(employeeAgg, 3);
-  const topDepartments = toTopRankings(departmentAgg, 3);
-
-  const analyticsProps = {
-    employeeCount,
-    teamCount,
-    departmentCount,
-    reviewCount,
-    ratedReviewCount,
-    teams,
-    recentReviews,
-    teamsError: Boolean(employeesTeamsRes.error),
-    topTeams,
-    topEmployees,
-    topDepartments,
-  };
+  // Submission progress across all open cycles
+  let submittedCount = 0;
+  let pendingCount = 0;
+  if (!openSelfReviewsRes.error && openSelfReviewsRes.data) {
+    for (const r of openSelfReviewsRes.data) {
+      if (r.status === "submitted" || r.status === "under_review" || r.status === "approved") {
+        submittedCount++;
+      } else {
+        pendingCount++;
+      }
+    }
+  }
 
   return (
     <>
       <DashboardHeader
         title="Dashboard"
-        description="Organisation-level snapshot across teams, departments, and review quality."
+        description="Overview of your organisation's performance and review progress."
       />
-      <DashboardView {...analyticsProps} />
+      <DashboardView
+        employeeCount={employeeCount}
+        teamCount={teamCount}
+        departmentCount={departmentCount}
+        activeCycleCount={activeCycleCount}
+        teams={teams}
+        recentCycles={recentCycles}
+        teamsError={Boolean(employeesTeamsRes.error)}
+        submittedCount={submittedCount}
+        pendingCount={pendingCount}
+      />
     </>
   );
 }
 
-function relFromArray(
-  rel: { name: string | null; team_name: string | null; department: string | null }[],
-): { name: string | null; team_name: string | null; department: string | null } | null {
-  return rel[0] ?? null;
-}
-
-function incrementAgg(
-  map: Map<string, { sum: number; count: number }>,
-  key: string,
-  value: number,
-): void {
-  const prev = map.get(key);
-  if (!prev) {
-    map.set(key, { sum: value, count: 1 });
-    return;
-  }
-  map.set(key, { sum: prev.sum + value, count: prev.count + 1 });
-}
-
-function toTopRankings(
-  map: Map<string, { sum: number; count: number }>,
-  limit: number,
-): OrgTopRanking[] {
-  return [...map.entries()]
-    .map(([name, v]) => ({
-      name,
-      avgRating: Math.round((v.sum / v.count) * 10) / 10,
-      reviewCount: v.count,
-    }))
-    .sort((a, b) => {
-      if (b.avgRating !== a.avgRating) return b.avgRating - a.avgRating;
-      if (b.reviewCount !== a.reviewCount) return b.reviewCount - a.reviewCount;
-      return a.name.localeCompare(b.name);
-    })
-    .slice(0, limit);
-}

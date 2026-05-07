@@ -145,6 +145,69 @@ export type ReviewWithDimensions = ReviewRow & {
   review_dimensions?: ReviewDimensionRow[];
 };
 
+// ─── Review Cycles ──────────────────────────────────────────────────────────
+
+export type ReviewCycleStatus = "draft" | "open" | "reviewing" | "closed";
+
+export interface ReviewCycleRow {
+  id: string;
+  org_id: string;
+  title: string;
+  cadence: ReviewCadence;
+  period_start: string;
+  period_end: string;
+  self_review_due: string | null;
+  status: ReviewCycleStatus;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SelfReviewStatus = "pending" | "submitted" | "late";
+
+export interface EmployeeSelfReviewRow {
+  id: string;
+  review_cycle_id: string;
+  employee_id: string;
+  org_id: string;
+  highlights: string;
+  challenges: string;
+  goals_next_period: string;
+  collaboration_note: string;
+  growth_areas: string;
+  support_needed: string;
+  self_rating: number | null;
+  status: SelfReviewStatus;
+  submitted_at: string | null;
+  form_token: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ManagerRemarksStatus = "draft" | "submitted" | "approved" | "archived";
+
+export interface ReviewManagerRemarksRow {
+  id: string;
+  self_review_id: string;
+  employee_id: string;
+  review_cycle_id: string;
+  org_id: string;
+  manager_user_id: string | null;
+  highlights_remark: string;
+  challenges_remark: string;
+  goals_remark: string;
+  growth_remark: string;
+  final_remark: string;
+  overall_rating: number | null;
+  ai_suggested_summary: string | null;
+  status: ManagerRemarksStatus;
+  submitted_at: string | null;
+  approved_at: string | null;
+  approved_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** Supabase error shape we map to user-facing messages */
 export function isUniqueViolation(error: { code?: string } | null): boolean {
   return error?.code === "23505";

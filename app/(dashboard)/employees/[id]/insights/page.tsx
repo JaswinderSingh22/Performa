@@ -11,7 +11,6 @@ import { getEmployeeLockState } from "@/lib/employee-lock";
 import type { AchievementRow } from "@/types/database";
 import type { EmployeeNoteRow } from "@/types/database";
 import type { EmployeeRow } from "@/types/database";
-import type { ReviewWithDimensions } from "@/types/database";
 
 type PageProps = Readonly<{
   params: Promise<{ id: string }>;
@@ -32,7 +31,6 @@ export default async function EmployeeInsightsPage({
     teamsRes,
     departmentsRes,
     achievementsRes,
-    reviewsRes,
     notesRes,
     accessRes,
   ] =
@@ -60,26 +58,6 @@ export default async function EmployeeInsightsPage({
         .eq("org_id", access.orgId)
         .order("created_at", { ascending: false }),
       access.supabase
-        .from("reviews")
-        .select(
-          `
-        *,
-        review_dimensions (
-          id,
-          review_id,
-          org_id,
-          label,
-          analysis,
-          rating,
-          sort_order,
-          created_at
-        )
-      `,
-        )
-        .eq("employee_id", id)
-        .eq("org_id", access.orgId)
-        .order("created_at", { ascending: false }),
-      access.supabase
         .from("employee_notes")
         .select("*")
         .eq("employee_id", id)
@@ -101,10 +79,6 @@ export default async function EmployeeInsightsPage({
   const employeeRow = employee as EmployeeRow;
   const lockState = await getEmployeeLockState(access, employeeRow.id);
   const locked = lockState.locked;
-  const lockTitle = locked
-    ? "This employee is locked because your workspace is over the seat limit."
-    : undefined;
-
   const employeeDepartment = (departmentsRes.data ?? []).find(
     (d) =>
       d.name.trim().toLowerCase() === (employeeRow.department?.trim().toLowerCase() ?? ""),
@@ -128,27 +102,6 @@ export default async function EmployeeInsightsPage({
             >
               All employees
             </Button>
-            {locked ? (
-              <Button
-                type="button"
-                size="sm"
-                className="rounded-lg shadow-sm cursor-not-allowed opacity-60"
-                disabled
-                title={lockTitle}
-              >
-                Roll-up review
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                size="sm"
-                render={<Link href={`/employees/${id}/generate-review`} />}
-                nativeButton={false}
-                className="rounded-lg shadow-sm"
-              >
-                Roll-up review
-              </Button>
-            )}
             <EmployeeProfileActions
               employee={employeeRow}
               teams={(teamsRes.data ?? []) as { id: string; name: string }[]}
@@ -168,7 +121,7 @@ export default async function EmployeeInsightsPage({
           employee={employeeRow}
           achievements={(achievementsRes.data ?? []) as AchievementRow[]}
           notes={(notesRes.data ?? []) as EmployeeNoteRow[]}
-          reviews={(reviewsRes.data ?? []) as ReviewWithDimensions[]}
+          reviews={[]}
           orgReviewCadence={
             (employeeDepartment?.review_cadence as
               | "monthly"

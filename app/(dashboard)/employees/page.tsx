@@ -3,9 +3,9 @@ import { ImportEmployeesDialog } from "@/components/employees/import-employees-d
 import type { ReactElement } from "react";
 
 import {
-  AnimatedEmployeesTable,
   type EmployeeListRow,
 } from "@/components/employees/animated-employees-table";
+import { EmployeeTableWrapper } from "@/components/employees/employee-table-wrapper";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { getEffectivePlanFromOrg } from "@/lib/billing/getBillingState";
 import { getOrgAccess } from "@/lib/org-context";
@@ -53,7 +53,7 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
     }
   }
 
-  const [empRes, achRes, revRes, noteRes, teamRes, departmentRes, orgRes, accessRes] =
+  const [empRes, achRes, revRes, noteRes, teamRes, departmentRes, orgRes, accessRes, activeCycleRes] =
     await Promise.all([
     empQuery,
     access.supabase
@@ -87,6 +87,23 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
       .from("workspace_members")
       .select("employee_id, role, invited_at")
       .eq("org_id", access.orgId),
+    // Fetch form tokens from the latest open review cycle
+    access.supabase
+      .from("employee_self_reviews")
+      .select("employee_id, form_token")
+      .eq("org_id", access.orgId)
+      .in(
+        "review_cycle_id",
+        // Sub-select active cycle ids: we need a separate query first
+        (await access.supabase
+          .from("review_cycles")
+          .select("id")
+          .eq("org_id", access.orgId)
+          .eq("status", "open")
+          .order("created_at", { ascending: false })
+          .limit(1)
+        ).data?.map((c) => c.id) ?? [],
+      ),
   ]);
 
   if (empRes.error) {
@@ -159,6 +176,14 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
   );
   const departments = (departmentRes.data ?? []) as Pick<DepartmentRow, "id" | "name">[];
 
+  // Build form token lookup for active review cycle
+  const formTokenByEmployee = new Map<string, string>(
+    (activeCycleRes.data ?? []).map((r) => [
+      r.employee_id as string,
+      r.form_token as string,
+    ]),
+  );
+
   const enriched: EmployeeListRow[] = rows.map((employee) => {
     const member = accessByEmployee.get(employee.id);
     return {
@@ -169,6 +194,7 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
       is_team_lead: leadEmployeeIds.has(employee.id),
       access_role: (member?.role as string | null) ?? null,
       access_invited_at: (member?.invited_at as string | null) ?? null,
+      review_form_token: formTokenByEmployee.get(employee.id) ?? null,
     };
   });
 
@@ -247,7 +273,12 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
                   {activeEmployees.length} employees
                 </p>
               </div> */}
-              <AnimatedEmployeesTable employees={activeEmployees} />
+              <EmployeeTableWrapper
+                employees={activeEmployees}
+                currentUserRole={access.role}
+                teams={teams}
+                departments={departments}
+              />
             </section>
 
             {hasLocked ? (
@@ -263,9 +294,12 @@ export default async function EmployeesPage(): Promise<ReactElement | null> {
                     {lockedEmployees.length} employees
                   </p>
                 </div>
-                <AnimatedEmployeesTable
+                <EmployeeTableWrapper
                   employees={lockedEmployees}
                   lockedEmployeeIds={lockedEmployees.map((e) => e.id)}
+                  currentUserRole={access.role}
+                  teams={teams}
+                  departments={departments}
                 />
               </section>
             ) : null}

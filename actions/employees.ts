@@ -291,6 +291,39 @@ export async function deleteEmployee(
   return { ok: true };
 }
 
+const bulkDeleteSchema = z.object({
+  employeeIds: z.array(z.uuid()).min(1).max(200),
+});
+
+export async function bulkDeleteEmployees(
+  input: unknown,
+): Promise<EmployeeActionResult<{ deleted: number }>> {
+  const parsed = bulkDeleteSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid delete request." };
+  }
+
+  const access = await getOrgAccess();
+  if (!access) return { ok: false, error: "We could not load your workspace." };
+
+  if (access.role !== "admin" && access.role !== "hr") {
+    return { ok: false, error: "Only Admin or HR can delete employees." };
+  }
+
+  // Delete only employees that belong to this org
+  const { error, count } = await access.supabase
+    .from("employees")
+    .delete({ count: "exact" })
+    .in("id", parsed.data.employeeIds)
+    .eq("org_id", access.orgId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/employees");
+  revalidatePath("/dashboard");
+  return { ok: true, data: { deleted: count ?? 0 } };
+}
+
 const employeeReviewCadenceSchema = z.object({
   employeeId: z.uuid(),
   reviewCadence: z.enum([

@@ -5,9 +5,8 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
 import {
   ArrowUpRightIcon,
+  CalendarRangeIcon,
   ClipboardListIcon,
-  MessageSquareIcon,
-  StarIcon,
   TrophyIcon,
   UsersIcon,
 } from "lucide-react";
@@ -26,49 +25,29 @@ import {
   staggerFieldParent,
 } from "@/lib/motion-variants";
 import { cn } from "@/lib/utils";
-import type { ReviewStatus } from "@/types/database";
-
-export type LeaderboardSlice = {
-  employeeId: string;
-  employeeName: string;
-  avgRating: number;
-  reviewCount: number;
-};
-
-export type RecentReviewRow = {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  title: string | null;
-  status: ReviewStatus;
-  rating: number | null;
-  createdAt: string;
-};
 
 export type TeamSlice = { name: string; count: number };
-export type OrgTopRanking = { name: string; avgRating: number; reviewCount: number };
+
+export type RecentCycleRow = {
+  id: string;
+  title: string;
+  status: string;
+  totalEmployees: number;
+  submitted: number;
+  createdAt: string;
+};
 
 export type DashboardViewProps = {
   employeeCount: number;
   teamCount: number;
   departmentCount: number;
-  reviewCount: number;
-  ratedReviewCount: number;
+  activeCycleCount: number;
   teams: TeamSlice[];
-  recentReviews: RecentReviewRow[];
+  recentCycles: RecentCycleRow[];
   teamsError?: boolean;
-  topTeams: OrgTopRanking[];
-  topEmployees: OrgTopRanking[];
-  topDepartments: OrgTopRanking[];
+  submittedCount: number;
+  pendingCount: number;
 };
-
-function statusLabel(): string {
-  return "Saved";
-}
-
-function statusBadgeVariant(): "secondary" {
-  return "secondary";
-}
 
 function AnimatedBar({
   value,
@@ -99,23 +78,28 @@ function AnimatedBar({
   );
 }
 
+function cycleStatusBadge(status: string): ReactElement {
+  if (status === "open")
+    return <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-normal">Open</Badge>;
+  if (status === "closed")
+    return <Badge variant="secondary" className="font-normal">Closed</Badge>;
+  return <Badge variant="outline" className="font-normal text-amber-700 dark:text-amber-400 border-amber-500/30 bg-amber-500/10">Draft</Badge>;
+}
+
 export function DashboardView({
   employeeCount,
   teamCount,
   departmentCount,
-  reviewCount,
-  ratedReviewCount,
+  activeCycleCount,
   teams,
-  recentReviews,
+  recentCycles,
   teamsError = false,
-  topTeams,
-  topEmployees,
-  topDepartments,
+  submittedCount,
+  pendingCount,
 }: DashboardViewProps): ReactElement {
   const prefersReducedMotion = useReducedMotion() === true;
-
-  const scoredRate =
-    reviewCount > 0 ? Math.round((ratedReviewCount / reviewCount) * 100) : 0;
+  const totalReviewable = submittedCount + pendingCount;
+  const submittedRate = totalReviewable > 0 ? Math.round((submittedCount / totalReviewable) * 100) : 0;
 
   const statCards = [
     {
@@ -143,10 +127,10 @@ export function DashboardView({
       iconClass: "text-amber-600 dark:text-amber-400",
     },
     {
-      title: "Reviews",
-      value: String(reviewCount),
-      hint: `${ratedReviewCount} scored · ${scoredRate}% coverage`,
-      icon: MessageSquareIcon,
+      title: "Review Cycles",
+      value: String(activeCycleCount),
+      hint: activeCycleCount === 0 ? "No active cycles" : `${activeCycleCount} active`,
+      icon: CalendarRangeIcon,
       accent: "from-emerald-500/15 to-teal-500/10",
       iconClass: "text-emerald-600 dark:text-emerald-400",
     },
@@ -213,29 +197,35 @@ export function DashboardView({
           })}
         </motion.div>
 
-        <motion.div
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            duration: 0.48,
-            ease: easingOut,
-            delay: prefersReducedMotion ? 0 : 0.08,
-          }}
-        >
-          <Card className="border-border/70 shadow-md">
-            <CardHeader className="border-border/60 border-b">
-              <CardTitle>Top performers snapshot</CardTitle>
-              <CardDescription>
-                Top 3 teams, employees, and departments based on average scored reviews.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4 pt-4 md:grid-cols-2 xl:grid-cols-3">
-              <TopRankList title="Top teams" rows={topTeams} />
-              <TopRankList title="Top employees" rows={topEmployees} />
-              <TopRankList title="Top departments" rows={topDepartments} />
-            </CardContent>
-          </Card>
-        </motion.div>
+        {totalReviewable > 0 && (
+          <motion.div
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.48, ease: easingOut, delay: prefersReducedMotion ? 0 : 0.06 }}
+          >
+            <Card className="border-border/70 shadow-md">
+              <CardHeader className="border-border/60 border-b">
+                <CardTitle>Self-review submission progress</CardTitle>
+                <CardDescription>
+                  Across all open cycles — {submittedCount} of {totalReviewable} employees have submitted.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Submitted</span>
+                    <span className="font-semibold tabular-nums">{submittedCount} / {totalReviewable} <span className="text-muted-foreground font-normal">({submittedRate}%)</span></span>
+                  </div>
+                  <AnimatedBar
+                    value={submittedCount}
+                    total={totalReviewable || 1}
+                    className="bg-gradient-to-r from-emerald-500 to-teal-500"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         <div className="grid gap-4 lg:grid-cols-5">
           <motion.div
@@ -312,126 +302,74 @@ export function DashboardView({
           <Card className="border-border/70 shadow-md">
             <CardHeader className="border-border/60 flex flex-row flex-wrap items-start justify-between gap-3 border-b">
               <div>
-                <CardTitle>Recent performance reviews</CardTitle>
+                <CardTitle>Recent review cycles</CardTitle>
                 <CardDescription>
-                    Opens each employee&apos;s insights directly in the reviews tab.
+                  Latest cycles — click to view submission details.
                 </CardDescription>
               </div>
+              <Link
+                href="/reviews"
+                className="text-primary hover:text-primary/80 flex items-center gap-1 text-sm font-medium transition-colors"
+              >
+                View all <ArrowUpRightIcon className="size-3.5" />
+              </Link>
             </CardHeader>
             <CardContent className="px-0 pt-0">
-              {recentReviews.length === 0 ? (
+              {recentCycles.length === 0 ? (
                 <p className="text-muted-foreground px-4 py-12 text-center text-sm md:px-6">
-                  No reviews yet. Start a structured review from any employee&apos;s
-                  profile.
+                  No review cycles yet.{" "}
+                  <Link href="/reviews" className="text-primary hover:underline">
+                    Create your first cycle
+                  </Link>{" "}
+                  to get started.
                 </p>
               ) : (
                 <ul className="divide-border/75 divide-y">
-                  {recentReviews.map((row, idx) => (
-                    <motion.li
-                      key={row.id}
-                      initial={
-                        prefersReducedMotion ? false : { opacity: 0, x: -8 }
-                      }
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{
-                        duration: 0.32,
-                        ease: easingOut,
-                        delay: prefersReducedMotion ? 0 : 0.04 + idx * 0.045,
-                      }}
-                    >
-                      <Link
-                        href={`/employees/${row.employeeId}/insights`}
-                        className="hover:bg-muted/45 flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 transition-colors md:px-6"
+                  {recentCycles.map((row, idx) => {
+                    const pct = row.totalEmployees > 0
+                      ? Math.round((row.submitted / row.totalEmployees) * 100)
+                      : 0;
+                    return (
+                      <motion.li
+                        key={row.id}
+                        initial={prefersReducedMotion ? false : { opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{
+                          duration: 0.32,
+                          ease: easingOut,
+                          delay: prefersReducedMotion ? 0 : 0.04 + idx * 0.045,
+                        }}
                       >
-                        <div className="min-w-0">
-                          <p className="text-foreground truncate font-medium">
-                            {row.title?.trim() || "Performance review"}
-                          </p>
-                          <p className="text-muted-foreground mt-0.5 text-xs">
-                            {row.employeeName}
-                            <span className="mx-1.5 opacity-40">·</span>
-                            {new Date(row.createdAt).toLocaleDateString(
-                              undefined,
-                              { dateStyle: "medium" },
-                            )}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge
-                            variant={statusBadgeVariant()}
-                            className="font-normal"
-                          >
-                            {statusLabel()}
-                          </Badge>
-                          {typeof row.rating === "number" ? (
-                            <span className="text-muted-foreground text-xs tabular-nums">
-                              {row.rating}/5
-                            </span>
-                          ) : null}
-                          <ArrowUpRightIcon className="text-muted-foreground size-4 shrink-0 opacity-50" />
-                        </div>
-                      </Link>
-                    </motion.li>
-                  ))}
+                        <Link
+                          href={`/reviews/${row.id}`}
+                          className="hover:bg-muted/45 flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 transition-colors md:px-6"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-foreground truncate font-medium">
+                              {row.title}
+                            </p>
+                            <p className="text-muted-foreground mt-0.5 text-xs">
+                              {row.totalEmployees > 0
+                                ? `${row.submitted}/${row.totalEmployees} submitted (${pct}%)`
+                                : "No employees assigned yet"}
+                              <span className="mx-1.5 opacity-40">·</span>
+                              {new Date(row.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {cycleStatusBadge(row.status)}
+                            <ArrowUpRightIcon className="text-muted-foreground size-4 shrink-0 opacity-50" />
+                          </div>
+                        </Link>
+                      </motion.li>
+                    );
+                  })}
                 </ul>
               )}
             </CardContent>
           </Card>
         </motion.div>
       </main>
-    </div>
-  );
-}
-
-function TopRankList({
-  title,
-  rows,
-}: {
-  title: string;
-  rows: OrgTopRanking[];
-}): ReactElement {
-  return (
-    <div className="bg-muted/25 border-border/70 rounded-xl border p-3">
-      <p className="text-muted-foreground mb-2 text-xs font-medium uppercase">{title}</p>
-      {rows.length === 0 ? (
-        <p className="text-muted-foreground text-xs">No scored reviews yet.</p>
-      ) : (
-        <ul className="space-y-2">
-          {rows.map((row, idx) => (
-            <li
-              key={`${title}-${row.name}`}
-              className={cn(
-                "flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-sm",
-                idx === 0 && "border-amber-500/35 bg-amber-500/8",
-                idx === 1 && "border-slate-400/35 bg-slate-500/8",
-                idx === 2 && "border-orange-500/35 bg-orange-500/8",
-              )}
-            >
-              <span className="flex min-w-0 items-center gap-2 truncate">
-                <span
-                  className={cn(
-                    "inline-flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] tabular-nums",
-                    idx === 0 && "bg-amber-500/20 text-amber-700 dark:text-amber-300",
-                    idx === 1 && "bg-slate-500/20 text-slate-700 dark:text-slate-300",
-                    idx === 2 && "bg-orange-500/20 text-orange-700 dark:text-orange-300",
-                  )}
-                >
-                  {idx + 1}
-                </span>
-                {idx === 0 ? (
-                  <TrophyIcon className="size-3.5 shrink-0 text-amber-500" />
-                ) : (
-                  <StarIcon className="text-muted-foreground size-3.5 shrink-0" />
-                )}
-                <span className="truncate">{row.name}</span>
-              </span>
-              <span className="text-muted-foreground shrink-0 tabular-nums text-xs">
-                {row.avgRating.toFixed(1)}/5 · {row.reviewCount}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

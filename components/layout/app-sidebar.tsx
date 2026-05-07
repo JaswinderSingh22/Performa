@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
+  CalendarRangeIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   GitBranchIcon,
@@ -55,6 +56,12 @@ const navPeople: NavItem[] = [
     label: "Organisation",
     Icon: GitBranchIcon,
     iconWrapClass: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
+  },
+  {
+    href: "/reviews",
+    label: "Reviews",
+    Icon: CalendarRangeIcon,
+    iconWrapClass: "bg-orange-500/12 text-orange-700 dark:text-orange-300",
   },
 ];
 
@@ -208,6 +215,7 @@ export function AppSidebar({
   const showOverview = isAdminLike;
   const showAdmin = isAdminLike;
   const showOrg = isAdminLike;
+  const showReviews = true; // all roles can see reviews
   const showSettings = isAdminLike;
 
   return (
@@ -296,7 +304,11 @@ export function AppSidebar({
         ) : null}
         <NavGroup
           title="People"
-          items={showOrg ? navPeople : navPeople.filter((i) => i.href !== "/teams")}
+          items={navPeople.filter(
+            (i) =>
+              (i.href !== "/teams" || showOrg) &&
+              (i.href !== "/reviews" || showReviews),
+          )}
           pathname={pathname}
           delayFrom={0.14}
           prefersReducedMotion={prefersReducedMotion}

@@ -3,8 +3,6 @@ import Link from "next/link";
 import type { ReactElement } from "react";
 import * as React from "react";
 import {
-  CalendarRangeIcon,
-  ClipboardListIcon,
   InfoIcon,
   StickyNoteIcon,
   TrophyIcon,
@@ -27,7 +25,6 @@ import { InsightsOverallRating } from "@/components/employees/insights-overall-r
 import { InsightsPerformanceChart } from "@/components/employees/insights-performance-chart";
 import { AchievementsPanel } from "@/components/employees/achievements-panel";
 import { EmployeeNotesPanel } from "@/components/employees/employee-notes-panel";
-import { ReviewsPanel, RollupsPanel } from "@/components/employees/reviews-panel";
 import {
   generatedReviewPerformanceSeries,
   missingCadenceReminders,
@@ -119,19 +116,10 @@ export function EmployeeInsightsView({
   readOnly?: boolean;
 }): ReactElement {
   const tab =
-    initialTab === "achievements" ||
-    initialTab === "notes" ||
-    initialTab === "reviews" ||
-    initialTab === "rollups"
+    initialTab === "achievements" || initialTab === "notes"
       ? initialTab
       : "achievements";
   const [overallWindow, setOverallWindow] = React.useState<OverallWindow>("all");
-  const standaloneReviews = reviews.filter(
-    (r) =>
-      r.generation_strategy !== "raw_period" &&
-      r.generation_strategy !== "stitched_summaries",
-  );
-  const reviewSaved = standaloneReviews.length;
   const withPeriod = reviews.filter((r) => r.period_start && r.period_end);
   const dimAvg =
     reviews.length > 0
@@ -520,36 +508,6 @@ export function EmployeeInsightsView({
             </p>
           </CardContent>
         </Card>
-        <Card className="border-border/70 overflow-hidden shadow-md">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-              Reviews saved
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-heading text-primary text-3xl font-semibold tabular-nums tracking-tight">
-              {reviewSaved}
-            </p>
-            <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
-              HR/admin review records saved for this employee.
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/70 overflow-hidden shadow-md">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-              Period-linked
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-heading text-emerald-600 text-3xl font-semibold tabular-nums tracking-tight dark:text-emerald-400">
-              {withPeriod.length}
-            </p>
-            <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
-              Reviews with explicit date windows for roll-up cadence.
-            </p>
-          </CardContent>
-        </Card>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -776,20 +734,6 @@ export function EmployeeInsightsView({
                 <StickyNoteIcon className="size-3.5" />
                 Notes
               </TabsTrigger>
-              <TabsTrigger
-                value="reviews"
-                className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-xl px-3 py-2"
-              >
-                <ClipboardListIcon className="size-3.5" />
-                Reviews
-              </TabsTrigger>
-              <TabsTrigger
-                value="rollups"
-                className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-xl px-3 py-2"
-              >
-                <CalendarRangeIcon className="size-3.5" />
-                Roll-ups
-              </TabsTrigger>
             </TabsList>
           </div>
           <div className="p-4 md:p-6">
@@ -801,16 +745,6 @@ export function EmployeeInsightsView({
             <TabsContent value="notes" keepMounted={false} className="m-0">
               <div className="max-h-[560px] overflow-y-auto pr-1">
               <EmployeeNotesPanel employeeId={employee.id} notes={notes} readOnly={readOnly} />
-              </div>
-            </TabsContent>
-            <TabsContent value="reviews" keepMounted={false} className="m-0">
-              <div className="max-h-[560px] overflow-y-auto pr-1">
-              <ReviewsPanel employeeId={employee.id} reviews={reviews} readOnly={readOnly} />
-              </div>
-            </TabsContent>
-            <TabsContent value="rollups" keepMounted={false} className="m-0">
-              <div className="max-h-[560px] overflow-y-auto pr-1">
-              <RollupsPanel employeeId={employee.id} reviews={reviews} readOnly={readOnly} />
               </div>
             </TabsContent>
           </div>
