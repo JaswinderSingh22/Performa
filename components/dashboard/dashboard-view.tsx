@@ -371,7 +371,7 @@ export function DashboardView({
                     <li className="flex items-center justify-between gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5">
                       <span className="flex items-center gap-2 text-sm">
                         <SparklesIcon className="text-emerald-600 size-4 shrink-0" />
-                        Approved
+                        Finalized
                       </span>
                       <span className="text-lg font-semibold tabular-nums">{reviewPipeline.approved}</span>
                     </li>

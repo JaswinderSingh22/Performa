@@ -4,9 +4,11 @@ import type { ReactElement } from "react";
 import { ArrowLeftIcon } from "lucide-react";
 
 import { DashboardHeader } from "@/components/layout/dashboard-header";
+import { HrReviewPanel } from "@/components/reviews/hr-review-panel";
 import { ManagerRemarksForm } from "@/components/reviews/manager-remarks-form";
 import { buttonVariants } from "@/components/ui/button";
 import { getOrgAccess } from "@/lib/org-context";
+import { normalizeWorkflowStatus } from "@/lib/reviews/workflow-status";
 import type {
   EmployeeSelfReviewRow,
   EmployeeRow,
@@ -25,8 +27,10 @@ export default async function ManagerRemarksPage({
   const access = await getOrgAccess();
   if (!access) return null;
 
-  const canReview = ["admin", "hr", "manager", "tl"].includes(access.role ?? "");
-  const canApprove = access.role === "admin" || access.role === "hr";
+  const canReview = access.role === "manager" || access.role === "tl";
+  const showHrPanel = access.role === "admin" || access.role === "hr";
+
+  const { data: authUser } = await access.supabase.auth.getUser();
 
   const [cycleRes, empRes, srRes] = await Promise.all([
     access.supabase
@@ -57,17 +61,47 @@ export default async function ManagerRemarksPage({
   const employee = empRes.data as EmployeeRow;
   const selfReview = srRes.data as EmployeeSelfReviewRow | null;
 
-  // Load existing remarks
-  const { data: remarksData } = selfReview
-    ? await access.supabase
-        .from("review_manager_remarks")
-        .select("*")
-        .eq("self_review_id", selfReview.id)
-        .eq("org_id", access.orgId)
-        .maybeSingle()
-    : { data: null };
+  let remarksRows: ReviewManagerRemarksRow[] = [];
+  if (selfReview) {
+    const { data: raw } = await access.supabase
+      .from("review_manager_remarks")
+      .select("*")
+      .eq("self_review_id", selfReview.id)
+      .eq("org_id", access.orgId);
+    remarksRows = (raw ?? []) as ReviewManagerRemarksRow[];
+  }
 
-  const remarks = remarksData as ReviewManagerRemarksRow | null;
+  const uid = authUser.user?.id;
+  const lineRole = access.role === "manager" || access.role === "tl";
+
+  const priority = (r: ReviewManagerRemarksRow) =>
+    r.status === "approved" ? 3 : r.status === "submitted" ? 2 : 1;
+
+  function sortRemarkRows(rows: ReviewManagerRemarksRow[]) {
+    return [...rows].sort(
+      (a, b) =>
+        priority(b) - priority(a) ||
+        String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")),
+    );
+  }
+
+  let displayRemark: ReviewManagerRemarksRow | null = null;
+  if (lineRole && uid) {
+    displayRemark = remarksRows.find((r) => r.manager_user_id === uid) ?? null;
+  } else {
+    displayRemark = remarksRows.length ? sortRemarkRows(remarksRows)[0] ?? null : null;
+  }
+
+  const submittedPacket =
+    remarksRows
+      .filter((r) => r.status === "submitted")
+      .sort((a, b) =>
+        String(b.submitted_at ?? b.updated_at ?? "").localeCompare(
+          String(a.submitted_at ?? a.updated_at ?? ""),
+        ),
+      )[0] ?? null;
+
+  const wf = normalizeWorkflowStatus(selfReview);
 
   return (
     <>
@@ -75,22 +109,40 @@ export default async function ManagerRemarksPage({
         title={employee.name}
         description={`Review for ${cycle.title}`}
         actions={
-          <Link href={`/reviews/${cycleId}`} className={buttonVariants({ variant: "ghost", size: "sm", className: "gap-1.5" })}>
+          <Link
+            href={`/reviews/${cycleId}`}
+            className={buttonVariants({ variant: "ghost", size: "sm", className: "gap-1.5" })}
+          >
             <ArrowLeftIcon className="size-4" />
             Back to cycle
           </Link>
         }
       />
 
-      <main className="flex-1 overflow-x-auto p-6">
+      <main className="flex-1 overflow-x-auto p-6 space-y-6">
         <ManagerRemarksForm
           cycle={cycle}
           employee={employee}
           selfReview={selfReview}
-          existingRemarks={remarks}
+          existingRemarks={displayRemark}
           canReview={canReview}
-          canApprove={canApprove}
+          workflowStatus={wf}
+          hrRejectionReason={selfReview?.hr_rejection_reason ?? null}
         />
+
+        {showHrPanel &&
+          selfReview &&
+          (wf === "hr_review_pending" || wf === "finalized") && (
+          <div className="mx-auto max-w-5xl">
+            <HrReviewPanel
+              selfReviewId={selfReview.id}
+              remarksId={wf === "hr_review_pending" ? submittedPacket?.id ?? null : null}
+              workflowStatus={wf}
+              defaultHrRemarks={selfReview.hr_remarks ?? ""}
+              finalizedAt={selfReview.finalized_at ?? null}
+            />
+          </div>
+        )}
       </main>
     </>
   );

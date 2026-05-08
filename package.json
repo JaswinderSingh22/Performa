@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "db:clean-retain-pro": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f scripts/clean-db-retain-pro-org.sql",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

@@ -80,3 +80,76 @@ export async function sendReviewFormEmail(
   }
   return { success: true };
 }
+
+export interface SendWorkspaceInviteEmailPayload {
+  to: string;
+  employeeName: string;
+  workspaceName: string;
+  accessRoleLabel: string;
+  signInLink: string;
+}
+
+/** Resend-based delivery when Supabase `/invite` cannot run (already linked) or as backup. */
+export async function sendWorkspaceInviteEmail(
+  payload: SendWorkspaceInviteEmailPayload,
+): Promise<{ success: boolean; error?: string }> {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) {
+    return {
+      success: false,
+      error:
+        "Set RESEND_API_KEY to send workspace invitations for existing accounts. Brand-new accounts may still use Supabase Auth email if it is enabled.",
+    };
+  }
+
+  const { to, employeeName, workspaceName, accessRoleLabel, signInLink } = payload;
+  const subject = `Invitation: ${workspaceName} on ${FROM_NAME}`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f9fafb;margin:0;padding:0;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px;">
+    <tr><td align="center">
+      <table width="100%" style="max-width:560px;background:#ffffff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08);overflow:hidden;">
+        <tr>
+          <td style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:28px 32px;">
+            <h1 style="color:#ffffff;margin:0;font-size:20px;font-weight:700;">${FROM_NAME}</h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px;">
+            <p style="color:#111827;font-size:16px;margin:0 0 16px;">Hi <strong>${employeeName}</strong>,</p>
+            <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 16px;">
+              You&apos;ve been invited to <strong>${workspaceName}</strong> with workspace access:
+              <strong>${accessRoleLabel}</strong>.
+            </p>
+            <div style="text-align:center;margin:0 0 28px;">
+              <a href="${signInLink}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:15px;font-weight:600;">
+                Open sign-in link →
+              </a>
+            </div>
+            <p style="color:#6b7280;font-size:13px;margin:0 0 12px;">Or paste this link:</p>
+            <p style="color:#6366f1;font-size:13px;word-break:break-all;margin:0;">${signInLink}</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  const text = `Hi ${employeeName},\n\nYou've been invited to "${workspaceName}" as ${accessRoleLabel}.\n\nSign in:\n${signInLink}\n`;
+
+  const { error } = await resend.emails.send({
+    from: `${FROM_NAME} <${FROM_EMAIL}>`,
+    to,
+    subject,
+    html,
+    text,
+  });
+
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}

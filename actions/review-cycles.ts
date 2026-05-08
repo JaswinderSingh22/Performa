@@ -304,6 +304,7 @@ export async function submitSelfReview(
       support_needed: parsed.data.support_needed,
       self_rating: parsed.data.self_rating,
       status: "submitted",
+      workflow_status: "employee_submitted",
       submitted_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -338,8 +339,16 @@ export async function saveManagerRemarks(
 
   const access = await getOrgAccess();
   if (!access) return { ok: false, error: "Workspace not found." };
-  if (!["admin", "hr", "manager", "tl"].includes(access.role ?? ""))
+  if (access.role === "admin" || access.role === "hr") {
+    return {
+      ok: false,
+      error:
+        "Only the employee’s manager or team lead can add manager remarks. HR and Admin can review after they submit to HR.",
+    };
+  }
+  if (access.role !== "manager" && access.role !== "tl") {
     return { ok: false, error: "You don't have permission to add remarks." };
+  }
 
   const { data: { user } } = await access.supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not authenticated." };
@@ -347,12 +356,31 @@ export async function saveManagerRemarks(
   // Load self-review to get IDs
   const { data: selfReview, error: srErr } = await access.supabase
     .from("employee_self_reviews")
-    .select("id, employee_id, review_cycle_id, org_id")
+    .select("id, employee_id, review_cycle_id, org_id, workflow_status")
     .eq("id", parsed.data.selfReviewId)
     .eq("org_id", access.orgId)
     .maybeSingle();
 
   if (srErr || !selfReview) return { ok: false, error: "Self-review not found." };
+
+  const workflow = ((selfReview as { workflow_status?: string }).workflow_status ??
+    "draft") as string;
+  if (workflow === "draft") {
+    return {
+      ok: false,
+      error: "The employee must submit their self-review before you can add remarks.",
+    };
+  }
+  if (workflow === "finalized") {
+    return { ok: false, error: "This review is finalized and cannot be edited." };
+  }
+  if (workflow === "hr_review_pending") {
+    return {
+      ok: false,
+      error:
+        "This review is waiting for HR. You can edit again only if HR requests revisions.",
+    };
+  }
 
   const upsertPayload = {
     self_review_id: parsed.data.selfReviewId,
@@ -382,34 +410,286 @@ export async function saveManagerRemarks(
   return { ok: true, data: { id: data.id } };
 }
 
-const approveRemarksSchema = z.object({ remarksId: z.uuid() });
+const finalizeHrReviewSchema = z.object({
+  selfReviewId: z.uuid(),
+  remarksId: z.uuid(),
+  hr_remarks: z.string().max(8000).default(""),
+});
 
-export async function approveManagerRemarks(
+/**
+ * HR / Admin — records HR remarks and finalizes the review (immutable afterward).
+ */
+export async function finalizeHrReview(
   input: unknown,
 ): Promise<CycleActionResult> {
-  const parsed = approveRemarksSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "Invalid remarks ID." };
+  const parsed = finalizeHrReviewSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
 
   const access = await getOrgAccess();
   if (!access) return { ok: false, error: "Workspace not found." };
-  if (access.role !== "admin" && access.role !== "hr")
-    return { ok: false, error: "Only Admin or HR can approve reviews." };
+  if (access.role !== "admin" && access.role !== "hr") {
+    return { ok: false, error: "Only Admin or HR can finalize reviews." };
+  }
 
   const { data: { user } } = await access.supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not authenticated." };
 
-  const { error } = await access.supabase
+  const now = new Date().toISOString();
+
+  const { data: sr, error: srErr } = await access.supabase
+    .from("employee_self_reviews")
+    .select("id, review_cycle_id, employee_id, org_id, workflow_status")
+    .eq("id", parsed.data.selfReviewId)
+    .eq("org_id", access.orgId)
+    .maybeSingle();
+
+  if (srErr || !sr) return { ok: false, error: "Self-review not found." };
+
+  const srWorkflow = (sr as { workflow_status?: string }).workflow_status ?? "draft";
+  if (srWorkflow !== "hr_review_pending") {
+    return {
+      ok: false,
+      error: "Reviews can only be finalized when HR is reviewing them.",
+    };
+  }
+
+  const { data: remark, error: rErr } = await access.supabase
+    .from("review_manager_remarks")
+    .select("id, self_review_id, status")
+    .eq("id", parsed.data.remarksId)
+    .eq("org_id", access.orgId)
+    .maybeSingle();
+
+  if (rErr || !remark || remark.self_review_id !== sr.id) {
+    return { ok: false, error: "Manager remarks not found for this review." };
+  }
+
+  const remarkStatus = (remark as { status?: string }).status;
+  if (remarkStatus !== "submitted") {
+    return {
+      ok: false,
+      error: "Finalize only applies after the manager submits remarks to HR.",
+    };
+  }
+
+  const cycleId = sr.review_cycle_id as string;
+
+  const { error: apErr } = await access.supabase
     .from("review_manager_remarks")
     .update({
       status: "approved",
-      approved_at: new Date().toISOString(),
+      approved_at: now,
       approved_by: user.id,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     })
     .eq("id", parsed.data.remarksId)
     .eq("org_id", access.orgId);
 
-  if (error) return { ok: false, error: error.message };
+  if (apErr) return { ok: false, error: apErr.message };
+
+  const { error: wfErr } = await access.supabase
+    .from("employee_self_reviews")
+    .update({
+      workflow_status: "finalized",
+      hr_remarks: parsed.data.hr_remarks,
+      hr_rejection_reason: null,
+      finalized_at: now,
+      finalized_by: user.id,
+      updated_at: now,
+    })
+    .eq("id", sr.id)
+    .eq("org_id", access.orgId);
+
+  if (wfErr) return { ok: false, error: wfErr.message };
+
+  revalidatePath(`/reviews/${cycleId}`);
+  revalidatePath(`/reviews/${cycleId}/${sr.employee_id}`);
   revalidatePath("/reviews");
   return { ok: true };
+}
+
+const rejectHrReviewSchema = z.object({
+  selfReviewId: z.uuid(),
+  remarksId: z.uuid(),
+  /** Shown to the manager so they can revise and resubmit. */
+  rejection_reason: z.string().trim().min(3, "Add a brief reason").max(2000),
+});
+
+export async function rejectHrReview(input: unknown): Promise<CycleActionResult> {
+  const parsed = rejectHrReviewSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const access = await getOrgAccess();
+  if (!access) return { ok: false, error: "Workspace not found." };
+  if (access.role !== "admin" && access.role !== "hr") {
+    return { ok: false, error: "Only Admin or HR can request revisions." };
+  }
+
+  const now = new Date().toISOString();
+
+  const { data: sr, error: srErr } = await access.supabase
+    .from("employee_self_reviews")
+    .select("id, review_cycle_id, employee_id, org_id, workflow_status")
+    .eq("id", parsed.data.selfReviewId)
+    .eq("org_id", access.orgId)
+    .maybeSingle();
+
+  if (srErr || !sr) return { ok: false, error: "Self-review not found." };
+
+  const srWorkflow = (sr as { workflow_status?: string }).workflow_status ?? "draft";
+  if (srWorkflow !== "hr_review_pending") {
+    return { ok: false, error: "Rejection is only available while HR is reviewing." };
+  }
+
+  const { data: remark } = await access.supabase
+    .from("review_manager_remarks")
+    .select("id, self_review_id")
+    .eq("id", parsed.data.remarksId)
+    .eq("org_id", access.orgId)
+    .maybeSingle();
+
+  if (!remark || remark.self_review_id !== sr.id) {
+    return { ok: false, error: "Manager remarks not found for this review." };
+  }
+
+  const cycleId = sr.review_cycle_id as string;
+
+  const { error: wfErr } = await access.supabase
+    .from("employee_self_reviews")
+    .update({
+      workflow_status: "revision_requested",
+      hr_rejection_reason: parsed.data.rejection_reason,
+      hr_remarks: "",
+      finalized_at: null,
+      finalized_by: null,
+      updated_at: now,
+    })
+    .eq("id", sr.id)
+    .eq("org_id", access.orgId);
+
+  if (wfErr) return { ok: false, error: wfErr.message };
+
+  const { error: rmkErr } = await access.supabase
+    .from("review_manager_remarks")
+    .update({
+      status: "draft",
+      submitted_at: null,
+      updated_at: now,
+    })
+    .eq("id", parsed.data.remarksId)
+    .eq("org_id", access.orgId);
+
+  if (rmkErr) return { ok: false, error: rmkErr.message };
+
+  revalidatePath(`/reviews/${cycleId}`);
+  revalidatePath(`/reviews/${cycleId}/${sr.employee_id}`);
+  revalidatePath("/reviews");
+  return { ok: true };
+}
+
+const submitToHrSchema = saveRemarksSchema.extend({});
+
+/** Manager line — locks manager remarks & sends the packet to HR for approval. */
+export async function submitManagerReviewToHr(
+  input: unknown,
+): Promise<CycleActionResult<{ id: string }>> {
+  const parsed = submitToHrSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const access = await getOrgAccess();
+  if (!access) return { ok: false, error: "Workspace not found." };
+  if (access.role === "admin" || access.role === "hr") {
+    return {
+      ok: false,
+      error:
+        "Only the employee’s manager or team lead can submit remarks to HR. Admins and HR approve or reject after that step.",
+    };
+  }
+  if (access.role !== "manager" && access.role !== "tl") {
+    return { ok: false, error: "You don't have permission to submit manager remarks." };
+  }
+
+  const { data: { user } } = await access.supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not authenticated." };
+
+  const { data: selfReview, error: srErr } = await access.supabase
+    .from("employee_self_reviews")
+    .select("id, employee_id, review_cycle_id, org_id, workflow_status, status")
+    .eq("id", parsed.data.selfReviewId)
+    .eq("org_id", access.orgId)
+    .maybeSingle();
+
+  if (srErr || !selfReview) return { ok: false, error: "Self-review not found." };
+
+  const selfStatus = (selfReview as { status?: string }).status;
+  if (selfStatus !== "submitted" && selfStatus !== "late") {
+    return {
+      ok: false,
+      error: "The employee must submit their self-review before you send to HR.",
+    };
+  }
+
+  const wf =
+    ((selfReview as { workflow_status?: string }).workflow_status ?? "draft");
+  if (!(wf === "employee_submitted" || wf === "revision_requested")) {
+    if (wf === "finalized") {
+      return { ok: false, error: "This review is already finalized." };
+    }
+    return {
+      ok: false,
+      error: "Cannot send to HR in the current workflow state.",
+    };
+  }
+
+  const now = new Date().toISOString();
+
+  const upsertPayload = {
+    self_review_id: parsed.data.selfReviewId,
+    employee_id: selfReview.employee_id,
+    review_cycle_id: selfReview.review_cycle_id,
+    org_id: access.orgId,
+    manager_user_id: user.id,
+    highlights_remark: parsed.data.highlights_remark,
+    challenges_remark: parsed.data.challenges_remark,
+    goals_remark: parsed.data.goals_remark,
+    growth_remark: parsed.data.growth_remark,
+    final_remark: parsed.data.final_remark,
+    overall_rating: parsed.data.overall_rating,
+    status: "submitted" as const,
+    submitted_at: now,
+    updated_at: now,
+  };
+
+  const { data, error } = await access.supabase
+    .from("review_manager_remarks")
+    .upsert(upsertPayload, { onConflict: "self_review_id,manager_user_id" })
+    .select("id")
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+
+  const { error: wfErr } = await access.supabase
+    .from("employee_self_reviews")
+    .update({
+      workflow_status: "hr_review_pending",
+      hr_rejection_reason: null,
+      hr_remarks: "",
+      finalized_at: null,
+      finalized_by: null,
+      updated_at: now,
+    })
+    .eq("id", selfReview.id)
+    .eq("org_id", access.orgId);
+
+  if (wfErr) return { ok: false, error: wfErr.message };
+
+  revalidatePath(`/reviews/${selfReview.review_cycle_id}`);
+  revalidatePath(`/reviews/${selfReview.review_cycle_id}/${selfReview.employee_id}`);
+  return { ok: true, data: { id: data.id } };
 }

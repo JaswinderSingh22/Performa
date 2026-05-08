@@ -10,13 +10,14 @@ import {
   ChevronUpIcon,
   Loader2Icon,
   SparklesIcon,
+  SendIcon,
   StarIcon,
   UserIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { z } from "zod";
 
-import { approveManagerRemarks, saveManagerRemarks } from "@/actions/review-cycles";
+import { saveManagerRemarks, submitManagerReviewToHr } from "@/actions/review-cycles";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -27,6 +28,7 @@ import type {
   EmployeeSelfReviewRow,
   ReviewCycleRow,
   ReviewManagerRemarksRow,
+  ReviewWorkflowStatus,
 } from "@/types/database";
 
 const schema = z.object({
@@ -226,18 +228,30 @@ export function ManagerRemarksForm({
   selfReview,
   existingRemarks,
   canReview,
-  canApprove,
+  workflowStatus,
+  hrRejectionReason,
 }: {
   cycle: ReviewCycleRow;
   employee: EmployeeRow;
   selfReview: EmployeeSelfReviewRow | null;
   existingRemarks: ReviewManagerRemarksRow | null;
   canReview: boolean;
-  canApprove: boolean;
+  workflowStatus: ReviewWorkflowStatus;
+  hrRejectionReason: string | null;
 }) {
   const router = useRouter();
-  const isApproved = existingRemarks?.status === "approved";
-  const readonly = !canReview || isApproved;
+  const isFinalized = workflowStatus === "finalized";
+  const managerReadonly =
+    !canReview ||
+    isFinalized ||
+    workflowStatus === "hr_review_pending";
+  const canSubmitToHr =
+    canReview &&
+    !isFinalized &&
+    (workflowStatus === "employee_submitted" ||
+      workflowStatus === "revision_requested") &&
+    selfReview &&
+    (selfReview.status === "submitted" || selfReview.status === "late");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -253,7 +267,7 @@ export function ManagerRemarksForm({
 
   const [aiLoading, setAiLoading] = React.useState(false);
   const [saveState, setSaveState] = React.useState<"idle" | "saved" | "error">("idle");
-  const [approveLoading, setApproveLoading] = React.useState(false);
+  const [submitHrLoading, setSubmitHrLoading] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const [remarksId, setRemarksId] = React.useState<string | null>(
     existingRemarks?.id ?? null,
@@ -278,15 +292,20 @@ export function ManagerRemarksForm({
     }
   }
 
-  async function handleApprove() {
-    if (!remarksId) return;
-    setApproveLoading(true);
+  async function handleSubmitToHr() {
+    if (!selfReview) return;
     setErrorMsg(null);
-    const res = await approveManagerRemarks({ remarksId });
-    setApproveLoading(false);
+    setSubmitHrLoading(true);
+    const values = form.getValues();
+    const res = await submitManagerReviewToHr({
+      selfReviewId: selfReview.id,
+      ...values,
+    });
+    setSubmitHrLoading(false);
     if (!res.ok) {
       setErrorMsg((res as { ok: false; error: string }).error);
     } else {
+      if (res.data?.id) setRemarksId(res.data.id);
       router.refresh();
     }
   }
@@ -346,7 +365,13 @@ export function ManagerRemarksForm({
     );
   }
 
-  if (selfReview.status !== "submitted" && !existingRemarks) {
+  const viewerIsLineManager = canReview;
+
+  if (
+    selfReview.status !== "submitted" &&
+    selfReview.status !== "late" &&
+    !existingRemarks
+  ) {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-border/60 bg-muted/10 py-20 text-center">
         <div className="bg-amber-500/10 text-amber-600 dark:text-amber-400 mb-4 flex size-12 items-center justify-center rounded-xl">
@@ -374,7 +399,20 @@ export function ManagerRemarksForm({
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
+      {!viewerIsLineManager && !isFinalized && (
+        <div className="rounded-xl border border-border/60 bg-muted/25 px-4 py-3 text-sm text-muted-foreground">
+          Manager or team lead fills in remarks per section and submits to HR. After that,
+          HR or Admin can add organizational notes and approve or reject at the bottom.
+        </div>
+      )}
       {/* Employee + cycle info header */}
+      {hrRejectionReason?.trim() && workflowStatus === "revision_requested" && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/8 px-5 py-4 text-sm">
+          <p className="font-medium text-amber-800 dark:text-amber-300">HR feedback</p>
+          <p className="text-muted-foreground mt-1 whitespace-pre-wrap">{hrRejectionReason}</p>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-start gap-4">
         <div className="bg-primary/10 text-primary flex size-14 items-center justify-center rounded-2xl text-xl font-bold">
           {employee.name.charAt(0).toUpperCase()}
@@ -389,10 +427,20 @@ export function ManagerRemarksForm({
             <Badge variant="outline" className="text-xs">
               {cycle.title}
             </Badge>
-            {isApproved && (
+            {isFinalized && (
               <Badge className="gap-1.5 bg-emerald-500/12 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 border text-xs">
                 <CheckCircle2Icon className="size-3" />
-                Approved
+                Finalized
+              </Badge>
+            )}
+            {workflowStatus === "hr_review_pending" && (
+              <Badge variant="secondary" className="text-xs">
+                Awaiting HR
+              </Badge>
+            )}
+            {workflowStatus === "revision_requested" && (
+              <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-400 text-xs">
+                Revisions requested
               </Badge>
             )}
             {selfReview.self_rating && (
@@ -405,7 +453,8 @@ export function ManagerRemarksForm({
         </div>
 
         {/* AI button */}
-        {!readonly && selfReview.status === "submitted" && (
+        {!managerReadonly &&
+          (selfReview.status === "submitted" || selfReview.status === "late") && (
           <Button
             type="button"
             variant="outline"
@@ -432,7 +481,7 @@ export function ManagerRemarksForm({
             selfReview={selfReview}
             value={(form.watch(section.remarkField) as string) ?? ""}
             onChange={(v) => form.setValue(section.remarkField, v)}
-            readonly={readonly}
+            readonly={managerReadonly}
           />
         ))}
       </div>
@@ -479,7 +528,7 @@ export function ManagerRemarksForm({
             <StarRating
               value={overallRating}
               onChange={(v) => form.setValue("overall_rating", v)}
-              readonly={readonly}
+              readonly={managerReadonly}
             />
           </div>
           <div>
@@ -487,13 +536,16 @@ export function ManagerRemarksForm({
             <Textarea
               {...form.register("final_remark")}
               placeholder={
-                readonly
+                managerReadonly
                   ? "No final remark added."
                   : "Write your overall assessment of this employee's performance…"
               }
-              readOnly={readonly}
+              readOnly={managerReadonly}
               rows={5}
-              className={cn("text-sm resize-none", readonly && "cursor-default opacity-80")}
+              className={cn(
+                "text-sm resize-none",
+                managerReadonly && "cursor-default opacity-80",
+              )}
             />
           </div>
         </div>
@@ -507,8 +559,8 @@ export function ManagerRemarksForm({
       )}
 
       {/* Action bar */}
-      {!readonly && (
-        <div className="flex items-center justify-between rounded-2xl border border-border/65 bg-card px-5 py-4 shadow-sm">
+      {!managerReadonly && (
+        <div className="flex flex-col gap-4 rounded-2xl border border-border/65 bg-card px-5 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <AnimatePresence>
               {saveState === "saved" && (
@@ -524,50 +576,39 @@ export function ManagerRemarksForm({
               )}
             </AnimatePresence>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => handleSave(true)}
-              disabled={form.formState.isSubmitting}
+              disabled={form.formState.isSubmitting || submitHrLoading}
             >
               Save draft
             </Button>
-            {canApprove && remarksId && (
-              <Button
-                type="button"
-                className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={handleApprove}
-                disabled={approveLoading}
-              >
-                {approveLoading ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <CheckCircle2Icon className="size-4" />
-                )}
-                Approve review
-              </Button>
-            )}
-            {!canApprove && (
-              <Button
-                type="button"
-                onClick={() => handleSave(false)}
-                disabled={form.formState.isSubmitting}
-              >
-                Save remarks
-              </Button>
-            )}
+            <Button
+              type="button"
+              onClick={handleSubmitToHr}
+              disabled={!canSubmitToHr || submitHrLoading || form.formState.isSubmitting}
+              className="gap-2"
+            >
+              {submitHrLoading ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <SendIcon className="size-4" />
+              )}
+              Submit for HR review
+            </Button>
           </div>
         </div>
       )}
 
-      {isApproved && (
+      {isFinalized && (
         <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4">
           <CheckCircle2Icon className="text-emerald-500 size-5 shrink-0" />
           <div>
-            <p className="text-sm font-medium">Review approved</p>
+            <p className="text-sm font-medium">Review finalized</p>
             <p className="text-muted-foreground text-xs">
-              Approved on{" "}
+              HR approval on{" "}
               {existingRemarks?.approved_at
                 ? new Date(existingRemarks.approved_at).toLocaleDateString("en-IN", {
                     day: "numeric",

@@ -64,11 +64,39 @@ function formatDate(d: string | null | undefined) {
   });
 }
 
+function teamNameFromSelfReviewRowEmployees(
+  rel: unknown,
+): string {
+  if (!rel) return "";
+  if (Array.isArray(rel)) {
+    const first = rel[0] as { team_name?: string | null } | undefined;
+    return (first?.team_name ?? "").trim();
+  }
+  return (((rel as { team_name?: string | null }).team_name ?? "") as string).trim();
+}
+
 export default async function ReviewsPage(): Promise<ReactElement | null> {
   const access = await getOrgAccess();
   if (!access) return null;
 
   const isAdminLike = access.role === "admin" || access.role === "hr";
+  const isLineManager = access.role === "manager" || access.role === "tl";
+
+  let managedTeamNames: Set<string> | null = null;
+  if (isLineManager) {
+    if (!access.employeeId) {
+      managedTeamNames = new Set();
+    } else {
+      const { data: myTeams } = await access.supabase
+        .from("teams")
+        .select("name")
+        .eq("org_id", access.orgId)
+        .eq("manager_employee_id", access.employeeId);
+      managedTeamNames = new Set(
+        (myTeams ?? []).map((t) => (t.name as string).trim()).filter(Boolean),
+      );
+    }
+  }
 
   const [{ data: cycles, error }, { data: teamsData, error: teamsErr }] =
     await Promise.all([
@@ -89,18 +117,28 @@ export default async function ReviewsPage(): Promise<ReactElement | null> {
 
   const teamOptions = (teamsData ?? []).map((row) => ({ name: row.name as string }));
 
-  // Fetch submission counts per cycle
+  // Fetch submission counts per cycle (scoped for managers/TLs to their teams only)
   const { data: submissionCounts } = await access.supabase
     .from("employee_self_reviews")
-    .select("review_cycle_id, status")
+    .select("review_cycle_id, status, employee_id, employees(team_name)")
     .eq("org_id", access.orgId);
 
   const countByCycle = new Map<string, { total: number; submitted: number }>();
   for (const row of submissionCounts ?? []) {
+    const eid = row.employee_id as string;
+    const teamName = teamNameFromSelfReviewRowEmployees(row.employees);
+
+    if (managedTeamNames) {
+      if (eid === access.employeeId) continue;
+      if (!teamName || !managedTeamNames.has(teamName)) continue;
+    }
+
     const cid = row.review_cycle_id as string;
     const existing = countByCycle.get(cid) ?? { total: 0, submitted: 0 };
     existing.total += 1;
-    if (row.status === "submitted") existing.submitted += 1;
+    if (row.status === "submitted" || row.status === "late") {
+      existing.submitted += 1;
+    }
     countByCycle.set(cid, existing);
   }
 

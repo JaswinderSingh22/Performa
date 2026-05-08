@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, MailIcon, SaveIcon } from "lucide-react";
 
 import { updateEmployee } from "@/actions/employees";
 import { inviteEmployeeToWorkspace, setEmployeeWorkspaceAccess } from "@/actions/employee-access";
@@ -49,7 +49,8 @@ export function InlineEditEmployeeDialog({
   onClose: () => void;
 }) {
   const router = useRouter();
-  const [accessBusy, setAccessBusy] = React.useState(false);
+  const [inviteLoading, setInviteLoading] = React.useState(false);
+  const [saveAccessLoading, setSaveAccessLoading] = React.useState(false);
   const [accessError, setAccessError] = React.useState<string | null>(null);
   const [accessSelection, setAccessSelection] = React.useState<AccessSelection>(
     normalizeAccess(accessRole),
@@ -208,76 +209,108 @@ export function InlineEditEmployeeDialog({
             </div>
 
             {/* Workspace access */}
-            <div className="rounded-xl border border-border/70 bg-muted/10 p-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div className="grid gap-1.5 min-w-0 flex-1">
-                  <Label htmlFor="ie-access">Workspace access</Label>
-                  <select
-                    id="ie-access"
-                    className="border-input bg-background text-foreground h-8 w-full rounded-lg border px-2.5 text-sm"
-                    value={accessSelection}
-                    disabled={accessBusy}
-                    onChange={(e) => setAccessSelection(e.target.value as AccessSelection)}
-                  >
-                    <option value="none">No login access</option>
-                    <option value="tl">TL</option>
-                    <option value="manager">Manager</option>
-                    {(currentUserRole === "admin" || currentUserRole === "hr") && (
-                      <>
-                        <option value="hr">HR</option>
-                        <option value="admin">Admin</option>
-                      </>
-                    )}
-                  </select>
-                  <p className="text-muted-foreground text-xs">
-                    {accessInvitedAt
-                      ? "Invite already sent. You can resend it anytime."
-                      : "An invite email will be sent to enable login access."}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={accessBusy || accessSelection === "none"}
-                    onClick={() => {
-                      setAccessError(null);
-                      setAccessBusy(true);
-                      void inviteEmployeeToWorkspace({
-                        employeeId: employee.id,
-                        role: accessSelection === "none" ? "manager" : accessSelection,
-                      }).then((res) => {
-                        setAccessBusy(false);
-                        if (!res.ok) { setAccessError(res.error); return; }
-                        router.refresh();
-                      });
-                    }}
-                  >
-                    {accessInvitedAt ? "Resend invite" : "Send invite"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={accessBusy}
-                    onClick={() => {
-                      setAccessError(null);
-                      setAccessBusy(true);
-                      void setEmployeeWorkspaceAccess({
-                        employeeId: employee.id,
-                        role: accessSelection,
-                      }).then((res) => {
-                        setAccessBusy(false);
-                        if (!res.ok) { setAccessError(res.error); return; }
-                        router.refresh();
-                      });
-                    }}
-                  >
-                    Save access
-                  </Button>
-                </div>
+            <div className="rounded-xl border border-border/80 bg-muted/25 p-4 space-y-4">
+              <div>
+                <Label htmlFor="ie-access" className="text-foreground font-medium">
+                  Workspace access
+                </Label>
+                <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+                  {accessInvitedAt
+                    ? "An invite email was sent to this employee. Use resend only if they did not receive it."
+                    : "Choose their role here, send an invite (creates login or links their existing account), then save access if they already signed up and you changed the role."}
+                </p>
               </div>
+
+              <select
+                id="ie-access"
+                className="border-input bg-background text-foreground h-9 w-full rounded-lg border px-3 text-sm"
+                value={accessSelection}
+                disabled={inviteLoading || saveAccessLoading}
+                onChange={(e) => setAccessSelection(e.target.value as AccessSelection)}
+              >
+                <option value="none">No login access</option>
+                <option value="tl">TL</option>
+                <option value="manager">Manager</option>
+                {(currentUserRole === "admin" || currentUserRole === "hr") && (
+                  <>
+                    <option value="hr">HR</option>
+                    <option value="admin">Admin</option>
+                  </>
+                )}
+              </select>
+
+              <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 w-full justify-center gap-2 border-primary/25 bg-background font-medium"
+                  disabled={
+                    inviteLoading ||
+                    saveAccessLoading ||
+                    accessSelection === "none"
+                  }
+                  onClick={() => {
+                    if (accessSelection === "none") return;
+                    setAccessError(null);
+                    setInviteLoading(true);
+                    void inviteEmployeeToWorkspace({
+                      employeeId: employee.id,
+                      role: accessSelection,
+                    }).then((res) => {
+                      setInviteLoading(false);
+                      if (!res.ok) {
+                        setAccessError(res.error);
+                        return;
+                      }
+                      router.refresh();
+                    });
+                  }}
+                >
+                  {inviteLoading ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <MailIcon className="size-4 shrink-0" />
+                  )}
+                  {accessInvitedAt ? "Resend invite email" : "Send invite email"}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-10 w-full justify-center gap-2 font-medium"
+                  disabled={inviteLoading || saveAccessLoading}
+                  onClick={() => {
+                    setAccessError(null);
+                    setSaveAccessLoading(true);
+                    void setEmployeeWorkspaceAccess({
+                      employeeId: employee.id,
+                      role: accessSelection,
+                    }).then((res) => {
+                      setSaveAccessLoading(false);
+                      if (!res.ok) {
+                        setAccessError(res.error);
+                        return;
+                      }
+                      router.refresh();
+                    });
+                  }}
+                >
+                  {saveAccessLoading ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <SaveIcon className="size-4 shrink-0" />
+                  )}
+                  Update role (no email)
+                </Button>
+              </div>
+
+              <p className="text-muted-foreground text-[11px] leading-relaxed">
+                <strong className="text-foreground/90 font-medium">Send invite</strong> creates a
+                Supabase login or links an existing account to this workspace.{" "}
+                <strong className="text-foreground/90 font-medium">Update role</strong> only works
+                after they have a linked account—use it to change Admin / HR / Manager / TL without
+                sending mail.
+              </p>
             </div>
           </div>
 

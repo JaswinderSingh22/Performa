@@ -28,16 +28,42 @@ export async function sendReviewEmailAction(
 
   const admin = createServiceRoleSupabase();
 
-  // Get employee details
   const { data: employee } = await admin
     .from("employees")
-    .select("name, email")
+    .select("name, email, team_name")
     .eq("id", employeeId)
     .eq("org_id", access.orgId)
     .maybeSingle();
 
   if (!employee?.email) {
     return { success: false, error: "Employee email not found." };
+  }
+
+  if (access.role === "manager" || access.role === "tl") {
+    if (!access.employeeId) {
+      return { success: false, error: "Your account must be linked to an employee profile." };
+    }
+    if (employeeId === access.employeeId) {
+      return {
+        success: false,
+        error: "You cannot send yourself a reminder from here — open your review link directly.",
+      };
+    }
+    const { data: ledTeams } = await admin
+      .from("teams")
+      .select("name")
+      .eq("org_id", access.orgId)
+      .eq("manager_employee_id", access.employeeId);
+    const ledNames = new Set(
+      (ledTeams ?? []).map((t) => (t.name as string).trim()).filter(Boolean),
+    );
+    const reportTeam = (employee.team_name as string | null | undefined)?.trim() ?? "";
+    if (!reportTeam || !ledNames.has(reportTeam)) {
+      return {
+        success: false,
+        error: "You can only send reminders to employees on teams you manage.",
+      };
+    }
   }
 
   // Find ALL pending self-reviews for this employee (could be multiple open cycles)
@@ -159,12 +185,57 @@ export async function sendReviewEmailsToAllAction(
     }
   }
 
-  const filteredReviews = allowedEmployeeIds
+  let filteredReviews = allowedEmployeeIds
     ? selfReviews.filter((r) => allowedEmployeeIds!.has(r.employee_id as string))
     : selfReviews;
 
+  // Managers / TLs: never email the whole cycle — only people in teams they lead,
+  // and never their own self-review row (they fill that outside this flow).
+  const isLineManager = access.role === "manager" || access.role === "tl";
+  if (isLineManager) {
+    if (!access.employeeId) {
+      return {
+        sent: 0,
+        failed: 0,
+        errors: ["Your account is not linked to an employee record."],
+      };
+    }
+    const { data: ledTeams } = await admin
+      .from("teams")
+      .select("name")
+      .eq("org_id", access.orgId)
+      .eq("manager_employee_id", access.employeeId);
+    const ledNames = (ledTeams ?? []).map((t) => t.name as string).filter(Boolean);
+    if (ledNames.length === 0) {
+      return {
+        sent: 0,
+        failed: 0,
+        errors: ["You are not assigned as manager of any team."],
+      };
+    }
+    const { data: ledEmps } = await admin
+      .from("employees")
+      .select("id")
+      .eq("org_id", access.orgId)
+      .in("team_name", ledNames);
+    const managedIds = new Set((ledEmps ?? []).map((e) => e.id as string));
+    filteredReviews = filteredReviews.filter(
+      (r) =>
+        managedIds.has(r.employee_id as string) &&
+        r.employee_id !== access.employeeId,
+    );
+  }
+
   if (filteredReviews.length === 0) {
-    return { sent: 0, failed: 0, errors: ["No pending employees found for the selected team(s)."] };
+    return {
+      sent: 0,
+      failed: 0,
+      errors: [
+        isLineManager
+          ? "No pending direct reports to email for this selection."
+          : "No pending employees found for the selected team(s).",
+      ],
+    };
   }
 
   const employeeIds = filteredReviews.map((r) => r.employee_id as string);

@@ -171,6 +171,14 @@ export interface ReviewCycleRow {
 
 export type SelfReviewStatus = "pending" | "submitted" | "late";
 
+/** Linear review pipeline for an employee in a cycle (see review_workflow_hr migration). */
+export type ReviewWorkflowStatus =
+  | "draft"
+  | "employee_submitted"
+  | "hr_review_pending"
+  | "revision_requested"
+  | "finalized";
+
 export interface EmployeeSelfReviewRow {
   id: string;
   review_cycle_id: string;
@@ -186,6 +194,12 @@ export interface EmployeeSelfReviewRow {
   status: SelfReviewStatus;
   submitted_at: string | null;
   form_token: string | null;
+  /** Populated after review_workflow_hr migration (default draft). */
+  workflow_status?: ReviewWorkflowStatus | null;
+  hr_remarks?: string | null;
+  hr_rejection_reason?: string | null;
+  finalized_at?: string | null;
+  finalized_by?: string | null;
   created_at: string;
   updated_at: string;
 }

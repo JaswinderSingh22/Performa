@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     if (!access) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (!["admin", "hr", "manager", "tl"].includes(access.role ?? "")) {
+    if (access.role !== "manager" && access.role !== "tl") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

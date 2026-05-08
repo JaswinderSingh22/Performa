@@ -4,9 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getOrgAccess } from "@/lib/org-context";
+import { sendWorkspaceInviteEmail } from "@/lib/email";
 import { createServiceRoleSupabase } from "@/lib/supabase/admin";
-import type { UserRole } from "@/types/database";
-
 export type EmployeeAccessResult = { ok: true } | { ok: false; error: string };
 
 const setAccessSchema = z.object({
@@ -20,30 +19,126 @@ function isAdminLike(role: string | null | undefined): boolean {
 }
 
 /**
- * Look up a Supabase auth user id by email via the GoTrue Admin REST endpoint.
- * Using admin.schema("auth").from("users") does NOT work — PostgREST only exposes
- * the public schema, not the auth schema managed by GoTrue.
+ * Resolve an auth user id via GoTrue Admin API.
+ * The `filter` query must use PostgREST form: email.eq.full@address — not raw email alone.
  */
 async function lookupAuthUserByEmail(email: string): Promise<string | null> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
-  if (!supabaseUrl || !serviceKey) return null;
-  try {
-    const res = await fetch(
-      `${supabaseUrl}/auth/v1/admin/users?filter=${encodeURIComponent(email)}&per_page=1`,
-      {
-        headers: {
-          apikey: serviceKey,
-          Authorization: `Bearer ${serviceKey}`,
+  const normalized = email.trim().toLowerCase();
+  if (!supabaseUrl || !serviceKey || !normalized) return null;
+
+  async function fetchWithFilter(filter: string): Promise<string | null> {
+    try {
+      const filterParam = encodeURIComponent(filter);
+      const res = await fetch(
+        `${supabaseUrl}/auth/v1/admin/users?filter=${filterParam}&per_page=2`,
+        {
+          headers: {
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
+          },
         },
-      },
-    );
-    if (!res.ok) return null;
-    const json = (await res.json()) as { users?: Array<{ id: string }> };
-    return json.users?.[0]?.id ?? null;
-  } catch {
-    return null;
+      );
+      if (!res.ok) return null;
+      const json = (await res.json()) as {
+        users?: Array<{ id: string; email?: string | null }>;
+      };
+      const users = json.users ?? [];
+      const hit =
+        users.find((u) => (u.email ?? "").trim().toLowerCase() === normalized) ??
+        users[0];
+      return hit?.id ?? null;
+    } catch {
+      return null;
+    }
   }
+
+  let id = await fetchWithFilter(`email.eq.${normalized}`);
+
+  if (!id) {
+    try {
+      const admin = createServiceRoleSupabase();
+      const perPage = 500;
+      for (let page = 1; page <= 40; page++) {
+        const { data, error } = await admin.auth.admin.listUsers({
+          page,
+          perPage,
+        });
+        if (error || !data?.users?.length) break;
+        const hit = data.users.find(
+          (u) => (u.email ?? "").trim().toLowerCase() === normalized,
+        );
+        if (hit) return hit.id;
+        if (data.users.length < perPage) break;
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return id;
+}
+
+/** Supabase attaches this redirect after completing the emailed auth link flow. Must be in Auth → URL Configuration. */
+function authInviteRedirectTo(): string {
+  const base = (
+    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
+  ).replace(/\/$/, "");
+  return `${base}/auth/callback`;
+}
+
+function looksLikeExistingUserInviteError(message: string | undefined): boolean {
+  const m = (message ?? "").toLowerCase();
+  return (
+    m.includes("already registered") ||
+    m.includes("already been registered") ||
+    m.includes("user already registered") ||
+    m.includes("email address is already") ||
+    m.includes("email already exists") ||
+    m.includes("already exists") ||
+    m.includes("duplicate")
+  );
+}
+
+async function deliverWorkspaceInviteViaResendMagicLink(
+  admin: ReturnType<typeof createServiceRoleSupabase>,
+  params: {
+    email: string;
+    redirectTo: string;
+    employeeName: string;
+    workspaceName: string;
+    accessRoleLabel: string;
+  },
+): Promise<EmployeeAccessResult> {
+  const { data: gen, error: genErr } = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email: params.email,
+    options: { redirectTo: params.redirectTo },
+  });
+
+  const actionLink = gen?.properties?.action_link ?? "";
+  if (genErr || !actionLink.trim()) {
+    return {
+      ok: false,
+      error:
+        genErr?.message ??
+        "Could not generate a magic sign-in link. Check Supabase Auth redirect URLs.",
+    };
+  }
+
+  const sent = await sendWorkspaceInviteEmail({
+    to: params.email,
+    employeeName: params.employeeName,
+    workspaceName: params.workspaceName,
+    accessRoleLabel: params.accessRoleLabel,
+    signInLink: actionLink,
+  });
+
+  if (!sent.success)
+    return { ok: false, error: sent.error ?? "Invitation email failed to send." };
+
+  return { ok: true };
 }
 
 async function ensureAdminLike(): Promise<
@@ -140,7 +235,10 @@ export async function inviteEmployeeToWorkspace(
   input: unknown,
 ): Promise<EmployeeAccessResult> {
   const parsed = inviteSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "Invalid invite request." };
+  if (!parsed.success) {
+    const err = parsed.error.issues[0]?.message ?? "Invalid invite request.";
+    return { ok: false, error: err };
+  }
 
   const gate = await ensureAdminLike();
   if (!gate.ok) return gate;
@@ -174,77 +272,77 @@ export async function inviteEmployeeToWorkspace(
   const accessRoleLabel = roleLabels[parsed.data.role] ?? parsed.data.role;
 
   const admin = createServiceRoleSupabase();
+  const workspaceName = org?.name ?? "your workspace";
+  const redirectTo = authInviteRedirectTo();
 
-  // If already linked to an auth user in this workspace, don't try to invite again.
-  // This prevents duplicate calls from throwing "already registered".
-  const { data: existingLink } = await admin
+  const inviteMetadata = {
+    full_name: employee.name,
+    workspace_name: workspaceName,
+    access_role: accessRoleLabel,
+    position: employee.role ?? "",
+  };
+
+  const { data: wmRow } = await admin
     .from("workspace_members")
-    .select("user_id")
+    .select("user_id, joined_at")
     .eq("org_id", access.orgId)
     .eq("employee_id", employee.id)
     .maybeSingle();
-  if (existingLink?.user_id) {
-    const { data: wm } = await admin
-      .from("workspace_members")
-      .select("joined_at")
-      .eq("org_id", access.orgId)
-      .eq("user_id", existingLink.user_id)
-      .maybeSingle();
 
-    const joinedAt =
-      (wm?.joined_at as string | null | undefined) ?? new Date().toISOString();
-
-    const { error: updateErr } = await admin.from("workspace_members").upsert({
-      org_id: access.orgId,
-      user_id: existingLink.user_id,
-      role: parsed.data.role,
-      employee_id: employee.id,
-      invited_at: new Date().toISOString(),
-      invited_by: actorId,
-      joined_at: joinedAt,
-    });
-    if (updateErr) return { ok: false, error: updateErr.message };
-
-    revalidatePath("/employees");
-    revalidatePath(`/employees/${employee.id}`);
-    revalidatePath(`/employees/${employee.id}/insights`);
-    revalidatePath("/settings");
-    return { ok: true };
-  }
-
-  // Invite (or re-invite). For already-registered users, inviteUserByEmail returns 422.
-  // In that case we fall back to looking up the existing auth user and linking them directly.
-  const inviteRes = await admin.auth.admin.inviteUserByEmail(email, {
-    data: {
-      full_name: employee.name,
-      workspace_name: org?.name ?? "your workspace",
-      access_role: accessRoleLabel,
-      position: employee.role ?? "",
-    },
-  });
-
-  let invitedUserId = inviteRes.data?.user?.id ?? null;
-  const inviteErr = inviteRes.error?.message ?? "";
-
+  let invitedUserId = (wmRow?.user_id as string | undefined) ?? null;
+  let queuedSupabaseInviteEmail = false;
   let seedJoinedAt: string | undefined;
+
   if (!invitedUserId) {
-    invitedUserId = await lookupAuthUserByEmail(email);
-    if (invitedUserId) {
+    const inviteRes = await admin.auth.admin.inviteUserByEmail(email, {
+      redirectTo,
+      data: inviteMetadata,
+    });
+
+    if (inviteRes.data?.user?.id && !inviteRes.error) {
+      invitedUserId = inviteRes.data.user.id;
+      queuedSupabaseInviteEmail = true;
+    } else if (
+      inviteRes.error &&
+      looksLikeExistingUserInviteError(inviteRes.error.message)
+    ) {
+      invitedUserId = await lookupAuthUserByEmail(email);
+      if (!invitedUserId)
+        return { ok: false, error: inviteRes.error.message };
+
+      seedJoinedAt = new Date().toISOString();
+    } else if (inviteRes.error) {
+      return { ok: false, error: inviteRes.error.message };
+    } else {
+      invitedUserId = await lookupAuthUserByEmail(email);
+      if (!invitedUserId) {
+        return {
+          ok: false,
+          error: "Could not create or find an auth user for this email.",
+        };
+      }
+
       seedJoinedAt = new Date().toISOString();
     }
-    if (!invitedUserId) {
-      return { ok: false, error: inviteErr || "Could not find or invite user." };
-    }
   }
 
-  // Ensure global profile exists for display in Settings.
+  if (!invitedUserId) {
+    return { ok: false, error: "Could not resolve a login for this employee." };
+  }
+
   await admin.from("user_profiles").upsert({
     user_id: invitedUserId,
     full_name: employee.name,
     email,
   });
 
-  // Create/update membership linked to employee.
+  const joinedAtPayload =
+    wmRow?.joined_at != null && String(wmRow.joined_at).length > 0
+      ? { joined_at: wmRow.joined_at as string }
+      : seedJoinedAt
+        ? { joined_at: seedJoinedAt }
+        : {};
+
   const { error: memberErr } = await admin.from("workspace_members").upsert({
     org_id: access.orgId,
     user_id: invitedUserId,
@@ -252,10 +350,26 @@ export async function inviteEmployeeToWorkspace(
     employee_id: employee.id,
     invited_at: new Date().toISOString(),
     invited_by: actorId,
-    ...(seedJoinedAt ? { joined_at: seedJoinedAt } : {}),
+    ...joinedAtPayload,
   });
 
   if (memberErr) return { ok: false, error: memberErr.message };
+
+  const useResendMagicLink =
+    !queuedSupabaseInviteEmail ||
+    process.env.WORKSPACE_INVITE_ALWAYS_RESEND === "1";
+
+  if (useResendMagicLink) {
+    const mailRes = await deliverWorkspaceInviteViaResendMagicLink(admin, {
+      email,
+      redirectTo,
+      employeeName: employee.name,
+      workspaceName,
+      accessRoleLabel,
+    });
+
+    if (!mailRes.ok) return mailRes;
+  }
 
   revalidatePath("/employees");
   revalidatePath(`/employees/${employee.id}`);

@@ -6,6 +6,7 @@ import {
   CheckCircle2Icon,
   ClockIcon,
   FilePenLineIcon,
+  HourglassIcon,
   MailIcon,
   SendIcon,
   Users2Icon,
@@ -17,11 +18,13 @@ import { CycleActionButtons } from "@/components/reviews/cycle-action-buttons";
 import { SendAllEmailsButton } from "@/components/reviews/send-all-emails-button";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { normalizeWorkflowStatus } from "@/lib/reviews/workflow-status";
 import { getOrgAccess } from "@/lib/org-context";
 import type {
   EmployeeSelfReviewRow,
   ReviewCycleRow,
   ReviewManagerRemarksRow,
+  ReviewWorkflowStatus,
 } from "@/types/database";
 
 type PageProps = Readonly<{ params: Promise<{ cycleId: string }> }>;
@@ -67,24 +70,35 @@ function submissionBadge(status: EmployeeSelfReviewRow["status"]) {
   }
 }
 
-function remarksBadge(status: ReviewManagerRemarksRow["status"] | null) {
-  if (!status) return <span className="text-muted-foreground text-xs">—</span>;
-  switch (status) {
-    case "approved":
+function pipelineStatusBadge(wf: ReviewWorkflowStatus) {
+  switch (wf) {
+    case "finalized":
       return (
         <span className="text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
-          Approved
+          Finalized
         </span>
       );
-    case "submitted":
+    case "hr_review_pending":
       return (
-        <span className="text-amber-600 dark:text-amber-400 text-xs font-semibold">
-          Awaiting approval
+        <span className="text-violet-600 dark:text-violet-400 text-xs font-semibold">
+          Awaiting HR
+        </span>
+      );
+    case "revision_requested":
+      return (
+        <span className="text-amber-700 dark:text-amber-400 text-xs font-semibold">
+          Revision
+        </span>
+      );
+    case "employee_submitted":
+      return (
+        <span className="text-sky-600 dark:text-sky-400 text-xs font-semibold">
+          With manager
         </span>
       );
     default:
       return (
-        <span className="text-muted-foreground text-xs">In progress</span>
+        <span className="text-muted-foreground text-xs">Draft</span>
       );
   }
 }
@@ -151,16 +165,37 @@ export default async function CycleDetailPage({
     .order("name", { ascending: true });
   const teams = (teamsData ?? []) as { id: string; name: string }[];
 
-  // Load manager remarks
+  // Load manager remarks (may be multiple reviewers per self-review; keep best row per packet)
   const { data: remarks } = await access.supabase
     .from("review_manager_remarks")
-    .select("self_review_id, status, overall_rating")
+    .select("self_review_id, status, overall_rating, updated_at, submitted_at")
     .eq("review_cycle_id", cycleId)
     .eq("org_id", access.orgId);
 
-  const remarksBySelfReview = new Map<string, ReviewManagerRemarksRow>(
-    (remarks ?? []).map((r) => [r.self_review_id as string, r as ReviewManagerRemarksRow]),
-  );
+  const priority = (r: { status: string }) =>
+    r.status === "approved" ? 3 : r.status === "submitted" ? 2 : 1;
+
+  const remarksBySelfReview = new Map<string, ReviewManagerRemarksRow>();
+  for (const row of remarks ?? []) {
+    const r = row as ReviewManagerRemarksRow;
+    const sid = r.self_review_id as string;
+    const prev = remarksBySelfReview.get(sid);
+    if (!prev) {
+      remarksBySelfReview.set(sid, r);
+      continue;
+    }
+    const diff = priority(r) - priority(prev);
+    if (diff > 0) {
+      remarksBySelfReview.set(sid, r);
+    } else if (diff === 0) {
+      if (
+        String(r.updated_at ?? "").localeCompare(String(prev.updated_at ?? "")) >
+        0
+      ) {
+        remarksBySelfReview.set(sid, r);
+      }
+    }
+  }
 
   const typedReviews = (selfReviews ?? []) as Array<
     EmployeeSelfReviewRow & {
@@ -177,11 +212,19 @@ export default async function CycleDetailPage({
 
   const totalCount = typedReviews.length;
   const submittedCount = typedReviews.filter(
-    (r) => r.status === "submitted",
+    (r) => r.status === "submitted" || r.status === "late",
   ).length;
   const pendingCount = typedReviews.filter((r) => r.status === "pending").length;
-  const approvedCount = [...remarksBySelfReview.values()].filter(
-    (r) => r.status === "approved",
+  const awaitingHrCount = typedReviews.filter(
+    (r) => normalizeWorkflowStatus(r) === "hr_review_pending",
+  ).length;
+  const finalizedCount = typedReviews.filter(
+    (r) => normalizeWorkflowStatus(r) === "finalized",
+  ).length;
+
+  const visibleSelfReviewIds = new Set(typedReviews.map((r) => r.id));
+  const withManagerRemarkCount = [...remarksBySelfReview.keys()].filter((id) =>
+    visibleSelfReviewIds.has(id),
   ).length;
 
   return (
@@ -211,7 +254,7 @@ export default async function CycleDetailPage({
 
       <main className="flex-1 space-y-6 overflow-x-auto p-6">
         {/* Stats row */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {[
             {
               icon: Users2Icon,
@@ -229,15 +272,22 @@ export default async function CycleDetailPage({
             },
             {
               icon: FilePenLineIcon,
-              label: "Under review",
-              value: remarksBySelfReview.size,
+              label: "With manager remarks",
+              value: withManagerRemarkCount,
               color: "text-amber-600 dark:text-amber-400",
               bg: "bg-amber-500/10",
             },
             {
+              icon: HourglassIcon,
+              label: "Awaiting HR",
+              value: awaitingHrCount,
+              color: "text-violet-600 dark:text-violet-400",
+              bg: "bg-violet-500/10",
+            },
+            {
               icon: CheckCircle2Icon,
-              label: "Approved",
-              value: approvedCount,
+              label: "Finalized",
+              value: finalizedCount,
               color: "text-emerald-600 dark:text-emerald-400",
               bg: "bg-emerald-500/10",
             },
@@ -277,7 +327,9 @@ export default async function CycleDetailPage({
                 const emp = sr.employees;
                 if (!emp) return null;
                 const remark = remarksBySelfReview.get(sr.id);
-                const canReview = sr.status === "submitted";
+                const wf = normalizeWorkflowStatus(sr);
+                const canReview =
+                  sr.status === "submitted" || sr.status === "late";
 
                 return (
                   <div
@@ -302,8 +354,8 @@ export default async function CycleDetailPage({
                     <div className="hidden sm:block">{submissionBadge(sr.status)}</div>
 
                     {/* Remarks status */}
-                    <div className="hidden md:block min-w-[120px] text-right">
-                      {remarksBadge(remark?.status ?? null)}
+                    <div className="hidden md:block min-w-[112px] text-right">
+                      {pipelineStatusBadge(wf)}
                     </div>
 
                     {/* Rating */}
@@ -318,15 +370,18 @@ export default async function CycleDetailPage({
                     <Link
                       href={`/reviews/${cycleId}/${emp.id}`}
                       className={buttonVariants({
-                        variant: canReview && !remark ? "default" : "outline",
+                        variant:
+                          canReview && wf !== "finalized" && !remark
+                            ? "default"
+                            : "outline",
                         size: "sm",
                         className: "shrink-0 text-xs",
                       })}
                     >
-                      {remark?.status === "approved"
+                      {wf === "finalized"
                         ? "View"
-                        : remark
-                          ? "View / Edit"
+                        : remark || wf === "hr_review_pending"
+                          ? "Open"
                           : canReview
                             ? "Review →"
                             : "View"}

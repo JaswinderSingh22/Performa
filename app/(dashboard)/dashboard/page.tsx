@@ -12,6 +12,8 @@ import type {
 import { DashboardView } from "@/components/dashboard/dashboard-view";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { getOrgAccess } from "@/lib/org-context";
+import { normalizeWorkflowStatus } from "@/lib/reviews/workflow-status";
+import type { EmployeeSelfReviewRow } from "@/types/database";
 
 /** Excluded from a team-lead dashboard roster (analytics only). Keep line managers who have TL/Mgr workspace access—they still report into the squad. */
 const TEAM_ANALYTICS_EXCLUDED_WORKSPACE_ROLES = new Set(["admin", "hr"]);
@@ -346,7 +348,7 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
           const cid = r.review_cycle_id as string;
           if (!submissionCounts[cid]) submissionCounts[cid] = { total: 0, submitted: 0 };
           submissionCounts[cid].total++;
-          if (r.status === "submitted") {
+          if (r.status === "submitted" || r.status === "late") {
             submissionCounts[cid].submitted++;
           }
         }
@@ -392,7 +394,7 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
       const cid = r.review_cycle_id as string;
       if (!countsByCycle[cid]) countsByCycle[cid] = { total: 0, submitted: 0, pending: 0 };
       countsByCycle[cid].total++;
-      if (r.status === "submitted") countsByCycle[cid].submitted++;
+      if (r.status === "submitted" || r.status === "late") countsByCycle[cid].submitted++;
       else countsByCycle[cid].pending++;
     }
 
@@ -413,17 +415,32 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
 
     let sq = access.supabase
       .from("employee_self_reviews")
-      .select("id, review_manager_remarks(status)")
+      .select("id, status, workflow_status, review_manager_remarks(status)")
       .in("review_cycle_id", openCycleIds)
       .eq("org_id", orgId)
-      .eq("status", "submitted");
+      .in("status", ["submitted", "late"]);
     if (analyticsIds !== null && analyticsIds.length > 0) {
       sq = sq.in("employee_id", analyticsIds);
     }
     const { data: submittedRows } = await sq;
 
     for (const row of submittedRows ?? []) {
-      const st = rollupRemarkStatus(row.review_manager_remarks);
+      const wf = normalizeWorkflowStatus(row as Pick<EmployeeSelfReviewRow, "status" | "workflow_status">);
+      if (wf === "finalized") {
+        pipeline.approved++;
+        continue;
+      }
+      if (wf === "hr_review_pending") {
+        pipeline.awaitingApproval++;
+        continue;
+      }
+      if (wf === "revision_requested") {
+        pipeline.needManagerInput++;
+        continue;
+      }
+      const st = rollupRemarkStatus(
+        (row as { review_manager_remarks?: unknown }).review_manager_remarks,
+      );
       if (st === "none" || st === "draft") {
         pipeline.needManagerInput++;
       } else if (st === "submitted") {
