@@ -4,6 +4,16 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getOrgAccess } from "@/lib/org-context";
+import { normalizePlan } from "@/lib/plans";
+import {
+  definitionForCyclePresetAndPlan,
+  presetAvailableOnPlan,
+  type ReviewTemplatePresetId,
+} from "@/lib/reviews/preset-review-templates";
+import {
+  normalizeDepartmentKey,
+  validateSelfReviewPayloadAgainstDefinition,
+} from "@/lib/reviews/review-template-definition";
 import { createServiceRoleSupabase } from "@/lib/supabase/admin";
 import type { ReviewCadence } from "@/types/database";
 
@@ -38,13 +48,23 @@ const createCycleSchema = z
       ),
     scope_entire_org: z.boolean(),
     scoped_team_names: z.array(z.string().trim().min(1)).max(80).default([]),
+    scoped_department_ids: z.array(z.string().uuid()).max(80).default([]),
+    review_template_preset: z.enum([
+      "general",
+      "engineering",
+      "sales",
+      "customer_success",
+      "leadership",
+    ]),
   })
   .superRefine((data, ctx) => {
     if (!data.scope_entire_org) {
-      if (!data.scoped_team_names || data.scoped_team_names.length === 0) {
+      const teams = data.scoped_team_names?.length ?? 0;
+      const depts = data.scoped_department_ids?.length ?? 0;
+      if (teams === 0 && depts === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Select at least one team, or enable entire workspace.",
+          message: "Select at least one team or department, or include the entire workspace.",
           path: ["scoped_team_names"],
         });
       }
@@ -86,8 +106,23 @@ export async function createReviewCycle(
     return { ok: false, error: "Period end must be after period start." };
   }
 
+  const { data: orgRow } = await access.supabase
+    .from("organizations")
+    .select("plan")
+    .eq("id", access.orgId)
+    .maybeSingle();
+  const plan = normalizePlan(orgRow?.plan as string | null | undefined);
+  const preset = parsed.data.review_template_preset as ReviewTemplatePresetId;
+  if (!presetAvailableOnPlan(preset, plan)) {
+    return {
+      ok: false,
+      error:
+        "Specialised review questionnaires require Pro or Pro+. Choose General, or upgrade your plan.",
+    };
+  }
+
   let scoped_team_names_insert: string[] | null = null;
-  if (!parsed.data.scope_entire_org) {
+  if (!parsed.data.scope_entire_org && (parsed.data.scoped_team_names?.length ?? 0) > 0) {
     const uniq = new Set<string>();
     for (const raw of parsed.data.scoped_team_names ?? []) {
       const { data: matchedTeam, error: teamErr } = await access.supabase
@@ -108,6 +143,27 @@ export async function createReviewCycle(
     scoped_team_names_insert = [...uniq];
   }
 
+  let scoped_department_ids_insert: string[] | null = null;
+  if (!parsed.data.scope_entire_org && (parsed.data.scoped_department_ids?.length ?? 0) > 0) {
+    const uniqDept = new Set<string>();
+    for (const deptId of parsed.data.scoped_department_ids ?? []) {
+      const { data: deptRow } = await access.supabase
+        .from("departments")
+        .select("id")
+        .eq("org_id", access.orgId)
+        .eq("id", deptId)
+        .maybeSingle();
+      if (!deptRow?.id) {
+        return {
+          ok: false,
+          error: "One of the selected departments was not found in this workspace.",
+        };
+      }
+      uniqDept.add(deptRow.id as string);
+    }
+    scoped_department_ids_insert = [...uniqDept];
+  }
+
   const { data, error } = await access.supabase
     .from("review_cycles")
     .insert({
@@ -118,6 +174,8 @@ export async function createReviewCycle(
       period_end: parsed.data.period_end,
       self_review_due: parsed.data.self_review_due ?? null,
       scoped_team_names: scoped_team_names_insert,
+      scoped_department_ids: scoped_department_ids_insert,
+      self_review_template_preset: preset,
       status: "draft",
       created_by: userId,
     })
@@ -131,8 +189,8 @@ export async function createReviewCycle(
 
 /**
  * Opens a cycle: status becomes 'open' and upserts employee_self_reviews rows
- * for active employees in scope — entire org when scoped_team_names is null/empty,
- * otherwise employees whose team_name matches the cycle's scoped_team_names.
+ * for employees in scope (entire org or union of selected teams / directory departments).
+ * Questionnaire copy comes from the cycle’s `self_review_template_preset` set at creation time.
  */
 export async function openReviewCycle(
   input: unknown,
@@ -144,10 +202,14 @@ export async function openReviewCycle(
   if (!auth.ok) return auth;
   const { access } = auth;
 
-  // Verify cycle belongs to this org
+  const admin = createServiceRoleSupabase();
+
+  // Verify cycle belongs to this org (RLS-aware user client keeps cross-tenant safe)
   const { data: cycle, error: cErr } = await access.supabase
     .from("review_cycles")
-    .select("id, status, org_id, scoped_team_names")
+    .select(
+      "id, status, org_id, scoped_team_names, scoped_department_ids, self_review_template_preset",
+    )
     .eq("id", parsed.data.cycleId)
     .eq("org_id", access.orgId)
     .maybeSingle();
@@ -156,42 +218,77 @@ export async function openReviewCycle(
   if (cycle.status !== "draft")
     return { ok: false, error: "Only draft cycles can be opened." };
 
-  let employeeQuery = access.supabase
+  const { data: orgRow, error: orgErr } = await admin
+    .from("organizations")
+    .select("plan")
+    .eq("id", access.orgId)
+    .maybeSingle();
+
+  if (orgErr) return { ok: false, error: orgErr.message };
+
+  const { data: roster, error: empErr } = await admin
     .from("employees")
-    .select("id")
+    .select("id, team_name, department")
     .eq("org_id", access.orgId)
     .eq("is_active", true);
 
-  const scoped = cycle.scoped_team_names as string[] | null | undefined;
-  if (Array.isArray(scoped) && scoped.length > 0) {
-    employeeQuery = employeeQuery.in("team_name", scoped);
-  }
-
-  const { data: employees, error: empErr } = await employeeQuery;
-
   if (empErr) return { ok: false, error: empErr.message };
 
-  const rows = (employees ?? []).map((e) => ({
+  const scopedTeams = cycle.scoped_team_names as string[] | null | undefined;
+  const scopedDeptIds = cycle.scoped_department_ids as string[] | null | undefined;
+  const hasTeams = Array.isArray(scopedTeams) && scopedTeams.length > 0;
+  const hasDepts = Array.isArray(scopedDeptIds) && scopedDeptIds.length > 0;
+
+  const teamKeySet = new Set<string>(
+    hasTeams ? (scopedTeams ?? []).map((t) => normalizeDepartmentKey(String(t))) : [],
+  );
+  const deptNameKeySet = new Set<string>();
+
+  if (hasDepts) {
+    const { data: deptRows, error: dErr } = await admin
+      .from("departments")
+      .select("id, name")
+      .eq("org_id", access.orgId)
+      .in("id", scopedDeptIds ?? []);
+    if (dErr) return { ok: false, error: dErr.message };
+    for (const row of deptRows ?? []) {
+      deptNameKeySet.add(normalizeDepartmentKey(row.name as string));
+    }
+  }
+
+  const picked =
+    roster?.filter((e) => {
+      if (!hasTeams && !hasDepts) return true;
+      const okTeam =
+        !hasTeams || teamKeySet.has(normalizeDepartmentKey((e.team_name as string | null) ?? ""));
+      const okDept =
+        !hasDepts ||
+        deptNameKeySet.has(normalizeDepartmentKey((e.department as string | null) ?? ""));
+      return okTeam || okDept;
+    }) ?? [];
+
+  const rows = picked.map((emp) => ({
     review_cycle_id: parsed.data.cycleId,
-    employee_id: e.id,
+    employee_id: emp.id as string,
     org_id: access.orgId,
     status: "pending" as const,
+    template_id: null as string | null,
   }));
 
   if (rows.length === 0) {
     return {
       ok: false,
       error:
-        "No active employees belong to this cycle's scope. Add people to the selected teams (or widen scope) before opening.",
+        "No active employees belong to this cycle's scope. Assign teams or directory departments that match your selection, or widen scope before opening.",
     };
   }
 
-  const { error: insErr } = await access.supabase
+  const { error: insErr } = await admin
     .from("employee_self_reviews")
     .upsert(rows, { onConflict: "review_cycle_id,employee_id", ignoreDuplicates: true });
   if (insErr) return { ok: false, error: insErr.message };
 
-  const { error: updErr } = await access.supabase
+  const { error: updErr } = await admin
     .from("review_cycles")
     .update({ status: "open", updated_at: new Date().toISOString() })
     .eq("id", parsed.data.cycleId)
@@ -285,13 +382,39 @@ export async function submitSelfReview(
 
   const { data: row, error: findErr } = await admin
     .from("employee_self_reviews")
-    .select("id, status")
+    .select("id, status, org_id, review_cycles(self_review_template_preset)")
     .eq("form_token", parsed.data.token)
     .maybeSingle();
 
   if (findErr || !row) return { ok: false, error: "This review link is invalid or expired." };
   if (row.status === "submitted")
     return { ok: false, error: "You have already submitted this review." };
+
+  const { data: orgRow } = await admin
+    .from("organizations")
+    .select("plan")
+    .eq("id", row.org_id as string)
+    .maybeSingle();
+
+  const cycleEmb = row as unknown as {
+    review_cycles?: { self_review_template_preset?: string | null } | null;
+  };
+  const definition = definitionForCyclePresetAndPlan(
+    cycleEmb.review_cycles?.self_review_template_preset,
+    orgRow?.plan as string | null | undefined,
+  );
+
+  const validationError = validateSelfReviewPayloadAgainstDefinition({
+    definition,
+    highlights: parsed.data.highlights,
+    challenges: parsed.data.challenges,
+    goals_next_period: parsed.data.goals_next_period,
+    collaboration_note: parsed.data.collaboration_note,
+    growth_areas: parsed.data.growth_areas,
+    support_needed: parsed.data.support_needed,
+    self_rating: parsed.data.self_rating,
+  });
+  if (validationError) return { ok: false, error: validationError };
 
   const { error: updErr } = await admin
     .from("employee_self_reviews")

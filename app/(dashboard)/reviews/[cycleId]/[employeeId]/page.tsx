@@ -8,6 +8,8 @@ import { HrReviewPanel } from "@/components/reviews/hr-review-panel";
 import { ManagerRemarksForm } from "@/components/reviews/manager-remarks-form";
 import { buttonVariants } from "@/components/ui/button";
 import { getOrgAccess } from "@/lib/org-context";
+import { normalizePlan } from "@/lib/plans";
+import { definitionForCyclePresetAndPlan } from "@/lib/reviews/preset-review-templates";
 import { normalizeWorkflowStatus } from "@/lib/reviews/workflow-status";
 import type {
   EmployeeSelfReviewRow,
@@ -60,6 +62,16 @@ export default async function ManagerRemarksPage({
   const cycle = cycleRes.data as ReviewCycleRow;
   const employee = empRes.data as EmployeeRow;
   const selfReview = srRes.data as EmployeeSelfReviewRow | null;
+
+  const { data: orgRow } = await access.supabase
+    .from("organizations")
+    .select("plan")
+    .eq("id", access.orgId)
+    .maybeSingle();
+  const templateDefinition = definitionForCyclePresetAndPlan(
+    cycle.self_review_template_preset,
+    orgRow?.plan as string | null | undefined,
+  );
 
   let remarksRows: ReviewManagerRemarksRow[] = [];
   if (selfReview) {
@@ -124,6 +136,7 @@ export default async function ManagerRemarksPage({
           cycle={cycle}
           employee={employee}
           selfReview={selfReview}
+          templateDefinition={templateDefinition}
           existingRemarks={displayRemark}
           canReview={canReview}
           workflowStatus={wf}

@@ -23,6 +23,11 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import type { SelfReviewSectionKey } from "@/lib/reviews/review-template-definition";
+import {
+  isEmployeeSectionShown,
+  type ReviewSelfTemplateDefinition,
+} from "@/lib/reviews/review-template-definition";
 import type {
   EmployeeRow,
   EmployeeSelfReviewRow,
@@ -48,32 +53,32 @@ type FormValues = z.input<typeof schema>;
 const REVIEW_SECTIONS = [
   {
     key: "highlights" as const,
+    employeeField: "highlights" satisfies SelfReviewSectionKey,
     label: "Highlights",
-    employeeField: "highlights",
     remarkField: "highlights_remark" as keyof FormValues,
     icon: "✅",
     description: "What went well this period",
   },
   {
     key: "challenges" as const,
+    employeeField: "challenges" satisfies SelfReviewSectionKey,
     label: "Challenges",
-    employeeField: "challenges",
     remarkField: "challenges_remark" as keyof FormValues,
     icon: "⚡",
     description: "What was hard or blocked them",
   },
   {
     key: "goals" as const,
+    employeeField: "goals_next_period" satisfies SelfReviewSectionKey,
     label: "Goals for next period",
-    employeeField: "goals_next_period",
     remarkField: "goals_remark" as keyof FormValues,
     icon: "🎯",
     description: "Plans and priorities ahead",
   },
   {
     key: "growth" as const,
+    employeeField: "growth_areas" satisfies SelfReviewSectionKey,
     label: "Growth & development",
-    employeeField: "growth_areas",
     remarkField: "growth_remark" as keyof FormValues,
     icon: "🌱",
     description: "Skills and areas to grow",
@@ -226,6 +231,7 @@ export function ManagerRemarksForm({
   cycle,
   employee,
   selfReview,
+  templateDefinition,
   existingRemarks,
   canReview,
   workflowStatus,
@@ -234,12 +240,20 @@ export function ManagerRemarksForm({
   cycle: ReviewCycleRow;
   employee: EmployeeRow;
   selfReview: EmployeeSelfReviewRow | null;
+  templateDefinition: ReviewSelfTemplateDefinition;
   existingRemarks: ReviewManagerRemarksRow | null;
   canReview: boolean;
   workflowStatus: ReviewWorkflowStatus;
   hrRejectionReason: string | null;
 }) {
   const router = useRouter();
+  const visibleManagerSections = React.useMemo(
+    () =>
+      REVIEW_SECTIONS.filter((s) =>
+        isEmployeeSectionShown(templateDefinition, s.employeeField),
+      ),
+    [templateDefinition],
+  );
   const isFinalized = workflowStatus === "finalized";
   const managerReadonly =
     !canReview ||
@@ -443,7 +457,8 @@ export function ManagerRemarksForm({
                 Revisions requested
               </Badge>
             )}
-            {selfReview.self_rating && (
+            {selfReview.self_rating != null &&
+              templateDefinition.show_self_rating !== false && (
               <Badge variant="outline" className="gap-1 text-xs">
                 <StarIcon className="size-3 fill-amber-400 text-amber-400" />
                 Self-rated {selfReview.self_rating}/5
@@ -474,7 +489,7 @@ export function ManagerRemarksForm({
 
       {/* Self-review sections */}
       <div className="space-y-3">
-        {REVIEW_SECTIONS.map((section) => (
+        {visibleManagerSections.map((section) => (
           <SelfReviewSection
             key={section.key}
             section={section}
@@ -487,32 +502,34 @@ export function ManagerRemarksForm({
       </div>
 
       {/* Collaboration note (view only) */}
-      {selfReview.collaboration_note?.trim() && (
+      {isEmployeeSectionShown(templateDefinition, "collaboration_note") &&
+        selfReview.collaboration_note?.trim() ? (
         <div className="rounded-2xl border border-border/65 bg-card px-5 py-4">
           <div className="mb-2 flex items-center gap-2">
             <span className="text-lg">🤝</span>
             <p className="text-sm font-semibold">Collaboration note</p>
             <span className="text-muted-foreground text-xs">(Employee view only)</span>
           </div>
-          <p className="text-sm leading-relaxed text-muted-foreground">
+          <p className="text-muted-foreground text-sm leading-relaxed">
             {selfReview.collaboration_note}
           </p>
         </div>
-      )}
+      ) : null}
 
       {/* Support needed (view only) */}
-      {selfReview.support_needed?.trim() && (
+      {isEmployeeSectionShown(templateDefinition, "support_needed") &&
+        selfReview.support_needed?.trim() ? (
         <div className="rounded-2xl border border-border/65 bg-card px-5 py-4">
           <div className="mb-2 flex items-center gap-2">
             <span className="text-lg">🙋</span>
             <p className="text-sm font-semibold">Support needed</p>
             <span className="text-muted-foreground text-xs">(Employee view only)</span>
           </div>
-          <p className="text-sm leading-relaxed text-muted-foreground">
+          <p className="text-muted-foreground text-sm leading-relaxed">
             {selfReview.support_needed}
           </p>
         </div>
-      )}
+      ) : null}
 
       {/* Final summary + overall rating */}
       <div className="rounded-2xl border border-primary/20 bg-primary/5 overflow-hidden">

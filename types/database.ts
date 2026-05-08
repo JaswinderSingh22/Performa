@@ -153,6 +153,16 @@ export type ReviewWithDimensions = ReviewRow & {
 
 export type ReviewCycleStatus = "draft" | "open" | "reviewing" | "closed";
 
+export interface ReviewSelfTemplateRow {
+  id: string;
+  org_id: string;
+  department_id: string | null;
+  name: string;
+  definition: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ReviewCycleRow {
   id: string;
   org_id: string;
@@ -162,8 +172,12 @@ export interface ReviewCycleRow {
   period_end: string;
   self_review_due: string | null;
   status: ReviewCycleStatus;
+  /** Built-in questionnaire preset chosen when the cycle was created. */
+  self_review_template_preset?: string;
   /** Null = open for all active employees; else only employees.team_name matches. */
   scoped_team_names?: string[] | null;
+  /** Union with team scope: employees whose directory department is in these squads. */
+  scoped_department_ids?: string[] | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -184,6 +198,8 @@ export interface EmployeeSelfReviewRow {
   review_cycle_id: string;
   employee_id: string;
   org_id: string;
+  /** Legacy: optional FK to custom row; self-review copy is driven by the cycle’s questionnaire preset. */
+  template_id?: string | null;
   highlights: string;
   challenges: string;
   goals_next_period: string;

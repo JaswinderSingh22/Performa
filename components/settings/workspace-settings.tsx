@@ -330,6 +330,15 @@ export function SettingsQuickLinksCard(): ReactElement {
           variant="outline"
           size="sm"
           className="h-9 w-full justify-between font-normal"
+          render={<Link href="/settings/review-templates" />}
+          nativeButton={false}
+        >
+          Self-review templates
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 w-full justify-between font-normal"
           render={<Link href="/dashboard" />}
           nativeButton={false}
         >

@@ -18,8 +18,14 @@ import { CycleActionButtons } from "@/components/reviews/cycle-action-buttons";
 import { SendAllEmailsButton } from "@/components/reviews/send-all-emails-button";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { normalizeWorkflowStatus } from "@/lib/reviews/workflow-status";
 import { getOrgAccess } from "@/lib/org-context";
+import { normalizePlan } from "@/lib/plans";
+import {
+  coercePresetForPlan,
+  labelForPreset,
+  normalizeStoredPreset,
+} from "@/lib/reviews/preset-review-templates";
+import { normalizeWorkflowStatus } from "@/lib/reviews/workflow-status";
 import type {
   EmployeeSelfReviewRow,
   ReviewCycleRow,
@@ -123,6 +129,19 @@ export default async function CycleDetailPage({
 
   if (cErr || !cycle) notFound();
   const typedCycle = cycle as ReviewCycleRow;
+
+  const { data: orgPlanRow } = await access.supabase
+    .from("organizations")
+    .select("plan")
+    .eq("id", access.orgId)
+    .maybeSingle();
+  const workspacePlan = normalizePlan(orgPlanRow?.plan as string | null | undefined);
+  const questionnaireLabel = labelForPreset(
+    coercePresetForPlan(
+      normalizeStoredPreset(typedCycle.self_review_template_preset),
+      workspacePlan,
+    ),
+  );
 
   // Load self-reviews, scoped to the manager's teams if needed
   let selfReviewQuery = access.supabase
@@ -231,7 +250,7 @@ export default async function CycleDetailPage({
     <>
       <DashboardHeader
         title={typedCycle.title}
-        description={`${new Date(typedCycle.period_start).toLocaleDateString("en-IN", { month: "short", year: "numeric" })} – ${new Date(typedCycle.period_end).toLocaleDateString("en-IN", { month: "short", year: "numeric" })} · ${typedCycle.cadence} · ${cycleScopeLabel(typedCycle)}`}
+        description={`${new Date(typedCycle.period_start).toLocaleDateString("en-IN", { month: "short", year: "numeric" })} – ${new Date(typedCycle.period_end).toLocaleDateString("en-IN", { month: "short", year: "numeric" })} · ${typedCycle.cadence} · ${cycleScopeLabel(typedCycle)} · Form: ${questionnaireLabel}`}
         actions={
           <div className="flex items-center gap-2">
             <Link href="/reviews" className={buttonVariants({ variant: "ghost", size: "sm", className: "gap-1.5" })}>

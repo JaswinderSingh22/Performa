@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { ReactElement } from "react";
 
 import { SelfReviewFormClient } from "@/components/reviews/self-review-form-client";
+import { definitionForCyclePresetAndPlan } from "@/lib/reviews/preset-review-templates";
 import { createServiceRoleSupabase } from "@/lib/supabase/admin";
 import type { EmployeeSelfReviewRow, ReviewCycleRow, EmployeeRow } from "@/types/database";
 
@@ -17,7 +18,11 @@ export default async function PublicSelfReviewFormPage({
 
   const { data: selfReview, error } = await admin
     .from("employee_self_reviews")
-    .select("*, review_cycles(*), employees(id, name, email, employee_code, role, department, team_name)")
+    .select(`
+      *,
+      review_cycles (*),
+      employees (id, name, email, employee_code, role, department, team_name)
+    `)
     .eq("form_token", token)
     .maybeSingle();
 
@@ -45,12 +50,24 @@ export default async function PublicSelfReviewFormPage({
     );
   }
 
+  const { data: orgRow } = await admin
+    .from("organizations")
+    .select("plan")
+    .eq("id", typedReview.org_id)
+    .maybeSingle();
+
+  const templateDefinition = definitionForCyclePresetAndPlan(
+    typedReview.review_cycles?.self_review_template_preset,
+    orgRow?.plan as string | null | undefined,
+  );
+
   return (
     <SelfReviewFormClient
       token={token}
       selfReview={typedReview}
       cycle={typedReview.review_cycles}
       employee={typedReview.employees}
+      definition={templateDefinition}
     />
   );
 }

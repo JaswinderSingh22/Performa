@@ -14,6 +14,12 @@ import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { CreateCycleDialog } from "@/components/reviews/create-cycle-dialog";
 import { Badge } from "@/components/ui/badge";
 import { getOrgAccess } from "@/lib/org-context";
+import { normalizePlan, type PlanId } from "@/lib/plans";
+import {
+  coercePresetForPlan,
+  labelForPreset,
+  normalizeStoredPreset,
+} from "@/lib/reviews/preset-review-templates";
 import type { ReviewCycleRow } from "@/types/database";
 
 function statusConfig(status: ReviewCycleRow["status"]) {
@@ -98,7 +104,7 @@ export default async function ReviewsPage(): Promise<ReactElement | null> {
     }
   }
 
-  const [{ data: cycles, error }, { data: teamsData, error: teamsErr }] =
+  const [{ data: cycles, error }, { data: teamsData, error: teamsErr }, { data: deptsData, error: deptsErr }, { data: orgRow, error: orgErr }] =
     await Promise.all([
       access.supabase
         .from("review_cycles")
@@ -110,12 +116,30 @@ export default async function ReviewsPage(): Promise<ReactElement | null> {
         .select("name")
         .eq("org_id", access.orgId)
         .order("name", { ascending: true }),
+      access.supabase
+        .from("departments")
+        .select("id, name")
+        .eq("org_id", access.orgId)
+        .order("name", { ascending: true }),
+      access.supabase
+        .from("organizations")
+        .select("plan")
+        .eq("id", access.orgId)
+        .maybeSingle(),
     ]);
 
   if (error) throw new Error(error.message);
   if (teamsErr) throw new Error(teamsErr.message);
+  if (deptsErr) throw new Error(deptsErr.message);
+  if (orgErr) throw new Error(orgErr.message);
+
+  const workspacePlan = normalizePlan(orgRow?.plan as string | null | undefined);
 
   const teamOptions = (teamsData ?? []).map((row) => ({ name: row.name as string }));
+  const departmentOptions = (deptsData ?? []).map((row) => ({
+    id: row.id as string,
+    name: (row.name as string) ?? "",
+  }));
 
   // Fetch submission counts per cycle (scoped for managers/TLs to their teams only)
   const { data: submissionCounts } = await access.supabase
@@ -149,12 +173,25 @@ export default async function ReviewsPage(): Promise<ReactElement | null> {
       <DashboardHeader
         title="Review Cycles"
         description="Manage employee self-reviews and manager feedback across your organisation."
-        actions={isAdminLike ? <CreateCycleDialog teams={teamOptions} /> : undefined}
+        actions={
+          isAdminLike ? (
+            <CreateCycleDialog
+              teams={teamOptions}
+              departments={departmentOptions}
+              workspacePlan={workspacePlan}
+            />
+          ) : undefined
+        }
       />
 
       <main className="flex-1 overflow-x-auto p-6">
         {typedCycles.length === 0 ? (
-          <EmptyState isAdminLike={isAdminLike} teams={teamOptions} />
+          <EmptyState
+            isAdminLike={isAdminLike}
+            teams={teamOptions}
+            departments={departmentOptions}
+            workspacePlan={workspacePlan}
+          />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {typedCycles.map((cycle) => {
@@ -192,6 +229,15 @@ export default async function ReviewsPage(): Promise<ReactElement | null> {
                     <p className="text-muted-foreground mt-0.5 text-sm">
                       {cadenceLabel(cycle.cadence)} ·{" "}
                       {formatDate(cycle.period_start)} – {formatDate(cycle.period_end)}
+                    </p>
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      Form:{" "}
+                      {labelForPreset(
+                        coercePresetForPlan(
+                          normalizeStoredPreset(cycle.self_review_template_preset),
+                          workspacePlan,
+                        ),
+                      )}
                     </p>
                   </div>
 
@@ -242,9 +288,13 @@ export default async function ReviewsPage(): Promise<ReactElement | null> {
 function EmptyState({
   isAdminLike,
   teams,
+  departments,
+  workspacePlan,
 }: {
   isAdminLike: boolean;
   teams: { name: string }[];
+  departments: { id: string; name: string }[];
+  workspacePlan: PlanId;
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -259,7 +309,11 @@ function EmptyState({
       </p>
       {isAdminLike && (
         <div className="mt-6">
-          <CreateCycleDialog teams={teams} />
+          <CreateCycleDialog
+            teams={teams}
+            departments={departments}
+            workspacePlan={workspacePlan}
+          />
         </div>
       )}
       <div className="mt-10 grid max-w-lg grid-cols-3 gap-4 text-left">

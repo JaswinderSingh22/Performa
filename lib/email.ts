@@ -1,8 +1,6 @@
 import "server-only";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 const FROM_NAME = process.env.RESEND_FROM_NAME ?? "PerformaAI";
 // Must be an email on a domain you have verified in Resend (resend.com/domains)
@@ -16,9 +14,38 @@ export interface SendReviewEmailPayload {
   deadline?: string | null;
 }
 
+/** Resend wraps network / DNS failures as this message; see resend-node SDK. */
+const RESEND_FETCH_FAILURE =
+  "Unable to fetch data. The request could not be resolved.";
+
+function humanizeResendError(raw: string): string {
+  const t = raw.trim();
+  if (
+    t === RESEND_FETCH_FAILURE ||
+    t.toLowerCase().includes("could not be resolved")
+  ) {
+    return (
+      "Email service could not be reached (network, DNS, or firewall). " +
+      "Check RESEND_API_KEY, outbound HTTPS to api.resend.com, and try again."
+    );
+  }
+  return t;
+}
+
 export async function sendReviewFormEmail(
   payload: SendReviewEmailPayload,
 ): Promise<{ success: boolean; error?: string }> {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) {
+    return {
+      success: false,
+      error:
+        "RESEND_API_KEY is not set. Add it in .env so review invite emails can send via Resend.",
+    };
+  }
+
+  const resend = new Resend(apiKey);
+
   const { to, employeeName, cycleTitle, formToken, deadline } = payload;
   const reviewUrl = `${SITE_URL}/review-form/${formToken}`;
   const deadlineText = deadline
@@ -67,18 +94,23 @@ export async function sendReviewFormEmail(
 
   const text = `Hi ${employeeName},\n\nYou have been invited to complete a self-review for the "${cycleTitle}" review cycle.\n\n${deadline ? `Deadline: ${new Date(deadline).toLocaleDateString(undefined, { dateStyle: "long" })}` : ""}\n\nStart your review: ${reviewUrl}\n\nThis link is unique to you.`;
 
-  const { error } = await resend.emails.send({
-    from: `${FROM_NAME} <${FROM_EMAIL}>`,
-    to,
-    subject: `Action required: Self-review for ${cycleTitle}`,
-    html,
-    text,
-  });
+  try {
+    const { error } = await resend.emails.send({
+      from: `${FROM_NAME} <${FROM_EMAIL}>`,
+      to,
+      subject: `Action required: Self-review for ${cycleTitle}`,
+      html,
+      text,
+    });
 
-  if (error) {
-    return { success: false, error: error.message };
+    if (error) {
+      return { success: false, error: humanizeResendError(error.message) };
+    }
+    return { success: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { success: false, error: humanizeResendError(msg) };
   }
-  return { success: true };
 }
 
 export interface SendWorkspaceInviteEmailPayload {
@@ -101,6 +133,8 @@ export async function sendWorkspaceInviteEmail(
         "Set RESEND_API_KEY to send workspace invitations for existing accounts. Brand-new accounts may still use Supabase Auth email if it is enabled.",
     };
   }
+
+  const resend = new Resend(apiKey);
 
   const { to, employeeName, workspaceName, accessRoleLabel, signInLink } = payload;
   const subject = `Invitation: ${workspaceName} on ${FROM_NAME}`;
@@ -142,14 +176,19 @@ export async function sendWorkspaceInviteEmail(
 
   const text = `Hi ${employeeName},\n\nYou've been invited to "${workspaceName}" as ${accessRoleLabel}.\n\nSign in:\n${signInLink}\n`;
 
-  const { error } = await resend.emails.send({
-    from: `${FROM_NAME} <${FROM_EMAIL}>`,
-    to,
-    subject,
-    html,
-    text,
-  });
+  try {
+    const { error } = await resend.emails.send({
+      from: `${FROM_NAME} <${FROM_EMAIL}>`,
+      to,
+      subject,
+      html,
+      text,
+    });
 
-  if (error) return { success: false, error: error.message };
-  return { success: true };
+    if (error) return { success: false, error: humanizeResendError(error.message) };
+    return { success: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { success: false, error: humanizeResendError(msg) };
+  }
 }

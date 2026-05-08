@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { CheckCircle2Icon, Loader2Icon, SparklesIcon, StarIcon } from "lucide-react";
 import { z } from "zod";
 import { motion } from "motion/react";
@@ -12,73 +12,61 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import type { SelfReviewSectionKey } from "@/lib/reviews/review-template-definition";
+import {
+  definitionToSelfReviewQuestions,
+  type ReviewSelfTemplateDefinition,
+} from "@/lib/reviews/review-template-definition";
 import type { EmployeeRow, EmployeeSelfReviewRow, ReviewCycleRow } from "@/types/database";
 
-const schema = z.object({
-  highlights: z.string().max(4000, "Max 4000 characters").default(""),
-  challenges: z.string().max(4000, "Max 4000 characters").default(""),
-  goals_next_period: z.string().max(4000, "Max 4000 characters").default(""),
-  collaboration_note: z.string().max(4000, "Max 4000 characters").default(""),
-  growth_areas: z.string().max(4000, "Max 4000 characters").default(""),
-  support_needed: z.string().max(2000, "Max 2000 characters").default(""),
-  self_rating: z.preprocess(
-    (v) => (v === "" || v === null || v === undefined ? null : Number(v)),
-    z.union([z.null(), z.number().int().min(1).max(5)]),
-  ),
-});
+function buildSelfReviewSchema(definition: ReviewSelfTemplateDefinition) {
+  const questions = definitionToSelfReviewQuestions(definition);
+  const showRating = definition.show_self_rating !== false;
 
-type FormValues = z.input<typeof schema>;
+  const baseShape = {
+    highlights: z.string().max(4000, "Max 4000 characters").default(""),
+    challenges: z.string().max(4000, "Max 4000 characters").default(""),
+    goals_next_period: z.string().max(4000, "Max 4000 characters").default(""),
+    collaboration_note: z.string().max(4000, "Max 4000 characters").default(""),
+    growth_areas: z.string().max(4000, "Max 4000 characters").default(""),
+    support_needed: z.string().max(2000, "Max 2000 characters").default(""),
+    self_rating: z.preprocess(
+      (v) => (v === "" || v === null || v === undefined ? null : Number(v)),
+      z.union([z.null(), z.number().int().min(1).max(5)]),
+    ),
+  };
 
-const FORM_QUESTIONS = [
-  {
-    key: "highlights" as const,
-    label: "What went well this period?",
-    sublabel: "Share your key wins, successful projects, or moments you're proud of.",
-    emoji: "✅",
-    placeholder: "e.g. Successfully delivered the new onboarding flow on time, helped unblock the team on the API migration…",
-    required: true,
-  },
-  {
-    key: "challenges" as const,
-    label: "What was challenging or blocked you?",
-    sublabel: "Honest reflection helps your manager understand what support you need.",
-    emoji: "⚡",
-    placeholder: "e.g. Had difficulty with unclear requirements on project X, struggled to balance multiple priorities…",
-    required: false,
-  },
-  {
-    key: "goals_next_period" as const,
-    label: "What are your goals for the next period?",
-    sublabel: "Be specific. Think about deliverables, skills, and team contributions.",
-    emoji: "🎯",
-    placeholder: "e.g. Complete certification in Y, improve code review turnaround, lead the Z feature end-to-end…",
-    required: false,
-  },
-  {
-    key: "collaboration_note" as const,
-    label: "How was collaboration with the team?",
-    sublabel: "Reflect on your teamwork, communication, and cross-functional interactions.",
-    emoji: "🤝",
-    placeholder: "e.g. Great coordination with design on the new dashboard, could have communicated blockers earlier…",
-    required: false,
-  },
-  {
-    key: "growth_areas" as const,
-    label: "What areas do you want to grow in?",
-    sublabel: "Skills, behaviours, or responsibilities you'd like to develop.",
-    emoji: "🌱",
-    placeholder: "e.g. System design, public speaking, taking ownership of larger features…",
-    required: false,
-  },
-  {
-    key: "support_needed" as const,
-    label: "Do you need any support or resources?",
-    sublabel: "Anything your manager or the company can do to help you succeed.",
-    emoji: "🙋",
-    placeholder: "e.g. Mentoring on architecture decisions, clearer sprint goals, more 1:1 time…",
-    required: false,
-  },
-] as const;
+  return z.object(baseShape).superRefine((data, ctx) => {
+    const fieldMap = data as Record<SelfReviewSectionKey, string>;
+    for (const q of questions) {
+      if (!q.required) continue;
+      if (!(fieldMap[q.key] ?? "").trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Required",
+          path: [q.key],
+        });
+      }
+    }
+    if (showRating && (data.self_rating === null || data.self_rating === undefined)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Please choose a rating",
+        path: ["self_rating"],
+      });
+    }
+  });
+}
+
+type FormValues = {
+  highlights: string;
+  challenges: string;
+  goals_next_period: string;
+  collaboration_note: string;
+  growth_areas: string;
+  support_needed: string;
+  self_rating: number | null;
+};
 
 function SelfRatingInput({
   value,
@@ -100,7 +88,7 @@ function SelfRatingInput({
             onClick={() => onChange(n)}
             onMouseEnter={() => setHovered(n)}
             onMouseLeave={() => setHovered(null)}
-            className="flex flex-col items-center gap-1 transition-all hover:scale-110 group"
+            className="group flex flex-col items-center gap-1 transition-all hover:scale-110"
           >
             <StarIcon
               className={cn(
@@ -110,15 +98,15 @@ function SelfRatingInput({
                   : "fill-none text-muted-foreground/30 group-hover:text-amber-300",
               )}
             />
-            <span className="text-[10px] text-muted-foreground">{n}</span>
+            <span className="text-muted-foreground text-[10px]">{n}</span>
           </button>
         ))}
       </div>
-      {(hovered ?? value) && (
-        <p className="text-sm text-muted-foreground">
+      {(hovered ?? value) ? (
+        <p className="text-muted-foreground text-sm">
           {labels[(hovered ?? value ?? 1) - 1]}
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -128,19 +116,31 @@ export function SelfReviewFormClient({
   selfReview,
   cycle,
   employee,
+  definition,
 }: {
   token: string;
   selfReview: EmployeeSelfReviewRow;
   cycle: ReviewCycleRow;
   employee: EmployeeRow;
+  definition: ReviewSelfTemplateDefinition;
 }) {
-  const [submitted, setSubmitted] = React.useState(
-    selfReview.status === "submitted",
-  );
+  const [submitted, setSubmitted] = React.useState(selfReview.status === "submitted");
   const [activeStep, setActiveStep] = React.useState(0);
 
+  const questions = React.useMemo(
+    () => definitionToSelfReviewQuestions(definition),
+    [definition],
+  );
+  const showSelfRating = definition.show_self_rating !== false;
+  const schema = React.useMemo(() => buildSelfReviewSchema(definition), [definition]);
+
+  const totalSteps = React.useMemo(
+    () => questions.length + (showSelfRating ? 1 : 0),
+    [questions.length, showSelfRating],
+  );
+
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
       highlights: selfReview.highlights ?? "",
       challenges: selfReview.challenges ?? "",
@@ -165,8 +165,6 @@ export function SelfReviewFormClient({
     setSubmitted(true);
   });
 
-  const totalQuestions = FORM_QUESTIONS.length + 1; // +1 for self-rating
-
   if (submitted) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-50 to-background p-6 dark:from-emerald-950/20">
@@ -185,11 +183,10 @@ export function SelfReviewFormClient({
           </motion.div>
           <h1 className="text-2xl font-bold">You&apos;re done! 🎉</h1>
           <p className="text-muted-foreground mt-3 leading-relaxed">
-            Your self-review for <strong>{cycle.title}</strong> has been submitted. Your manager will review and share feedback soon.
+            Your self-review for <strong>{cycle.title}</strong> has been submitted. Your manager will
+            review and share feedback soon.
           </p>
-          <p className="text-muted-foreground mt-6 text-sm">
-            You can close this tab.
-          </p>
+          <p className="text-muted-foreground mt-6 text-sm">You can close this tab.</p>
         </motion.div>
       </div>
     );
@@ -197,8 +194,7 @@ export function SelfReviewFormClient({
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Top bar */}
-      <div className="border-b border-border/60 bg-card px-6 py-4">
+      <div className="border-border/60 bg-card border-b px-6 py-4">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="bg-primary/10 text-primary flex size-8 items-center justify-center rounded-lg text-sm font-bold">
@@ -213,25 +209,26 @@ export function SelfReviewFormClient({
             <div className="bg-muted/60 h-2 w-24 overflow-hidden rounded-full sm:w-40">
               <div
                 className="bg-primary h-full rounded-full transition-all duration-300"
-                style={{ width: `${(activeStep / totalQuestions) * 100}%` }}
+                style={{
+                  width: `${totalSteps > 0 ? (activeStep / totalSteps) * 100 : 0}%`,
+                }}
               />
             </div>
             <span className="text-muted-foreground text-xs">
-              {activeStep}/{totalQuestions}
+              {activeStep}/{totalSteps}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Form */}
       <form onSubmit={onSubmit} className="mx-auto max-w-2xl px-6 py-10">
-        {/* Intro */}
         <div className="mb-10">
           <h1 className="text-2xl font-bold">Self-review</h1>
           <p className="text-muted-foreground mt-2">
-            Take a moment to reflect on your work this period. Your responses will be shared with your manager and are used to write your performance review.
+            Take a moment to reflect on your work this period. Your responses will be shared with your
+            manager and are used to write your performance review.
           </p>
-          {cycle.self_review_due && (
+          {cycle.self_review_due ? (
             <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs text-amber-700 dark:text-amber-400">
               <SparklesIcon className="size-3" />
               Due by{" "}
@@ -241,11 +238,11 @@ export function SelfReviewFormClient({
                 year: "numeric",
               })}
             </div>
-          )}
+          ) : null}
         </div>
 
         <div className="space-y-8">
-          {FORM_QUESTIONS.map((q, idx) => (
+          {questions.map((q, idx) => (
             <motion.div
               key={q.key}
               initial={{ opacity: 0, y: 16 }}
@@ -259,13 +256,11 @@ export function SelfReviewFormClient({
                 <div>
                   <Label className="text-base font-semibold">
                     {q.label}
-                    {q.required && (
+                    {q.required ? (
                       <span className="text-destructive ml-1">*</span>
-                    )}
+                    ) : null}
                   </Label>
-                  <p className="text-muted-foreground mt-0.5 text-sm">
-                    {q.sublabel}
-                  </p>
+                  <p className="text-muted-foreground mt-0.5 text-sm">{q.sublabel}</p>
                 </div>
               </div>
               <Textarea
@@ -274,54 +269,50 @@ export function SelfReviewFormClient({
                 rows={4}
                 className="resize-none text-sm"
               />
-              {form.formState.errors[q.key] && (
-                <p className="text-destructive text-xs">
-                  {form.formState.errors[q.key]?.message}
-                </p>
-              )}
+              {form.formState.errors[q.key] ? (
+                <p className="text-destructive text-xs">{form.formState.errors[q.key]?.message}</p>
+              ) : null}
             </motion.div>
           ))}
 
-          {/* Self-rating */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: FORM_QUESTIONS.length * 0.05 }}
-            className="rounded-2xl border border-border/65 bg-card p-6 space-y-3"
-            onFocus={() => setActiveStep(totalQuestions)}
-          >
-            <div className="flex items-start gap-2.5">
-              <span className="text-xl">⭐</span>
-              <div>
-                <Label className="text-base font-semibold">
-                  How would you rate your overall performance?
-                </Label>
-                <p className="text-muted-foreground mt-0.5 text-sm">
-                  A honest self-assessment helps calibrate the final review.
-                </p>
+          {showSelfRating ? (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: questions.length * 0.05 }}
+              className="border-border/65 bg-card space-y-3 rounded-2xl border p-6"
+              onFocus={() => setActiveStep(totalSteps)}
+            >
+              <div className="flex items-start gap-2.5">
+                <span className="text-xl">⭐</span>
+                <div>
+                  <Label className="text-base font-semibold">
+                    {definition.self_rating_title ?? "How would you rate your overall performance?"}
+                  </Label>
+                  <p className="text-muted-foreground mt-0.5 text-sm">
+                    {definition.self_rating_description ??
+                      "A honest self-assessment helps calibrate the final review."}
+                  </p>
+                </div>
               </div>
-            </div>
-            <SelfRatingInput
-              value={selfRating}
-              onChange={(v) => form.setValue("self_rating", v)}
-            />
-          </motion.div>
+              <SelfRatingInput
+                value={selfRating}
+                onChange={(v) => form.setValue("self_rating", v)}
+              />
+              {form.formState.errors.self_rating ? (
+                <p className="text-destructive text-xs">{form.formState.errors.self_rating.message}</p>
+              ) : null}
+            </motion.div>
+          ) : null}
 
-          {/* Error */}
-          {form.formState.errors.root && (
+          {form.formState.errors.root ? (
             <div className="text-destructive rounded-xl bg-destructive/10 px-4 py-3 text-sm">
               {form.formState.errors.root.message}
             </div>
-          )}
+          ) : null}
 
-          {/* Submit */}
           <div className="flex justify-end pt-2">
-            <Button
-              type="submit"
-              size="lg"
-              className="min-w-[160px] gap-2"
-              disabled={form.formState.isSubmitting}
-            >
+            <Button type="submit" size="lg" className="min-w-[160px] gap-2" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? (
                 <>
                   <Loader2Icon className="size-4 animate-spin" />

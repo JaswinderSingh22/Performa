@@ -34,6 +34,11 @@ export function normalizePlan(raw: string | null | undefined): PlanId {
   return "free";
 }
 
+/** Dept-specific review self-report templates; Free uses generic code default only. */
+export function departmentReviewTemplatesEnabled(plan: PlanId): boolean {
+  return plan === "pro" || plan === "pro_plus";
+}
+
 /** Sentinel for unlimited internal limits in server checks. */
 export const UNLIMITED_LIMIT = Number.MAX_SAFE_INTEGER;
 
