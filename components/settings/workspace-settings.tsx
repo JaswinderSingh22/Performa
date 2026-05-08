@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 
 function planBadgeVariant(
   plan: string,
@@ -108,44 +107,44 @@ export function WorkspaceOrganizationSettings({
       : "—";
 
   return (
-    <Card className="border-border/75 from-card/98 to-muted/[0.12] relative overflow-hidden bg-gradient-to-br shadow-md">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/22 to-transparent" />
-
-      <CardHeader className="gap-3 pb-2 md:flex-row md:items-start md:justify-between md:space-y-0">
-        <div className="flex items-start gap-3">
-          <div className="bg-primary/11 text-primary border-primary/12 flex size-11 shrink-0 items-center justify-center rounded-xl border shadow-inner">
-            <Building2Icon className="size-[1.35rem]" aria-hidden />
+    <Card className="border-border/70 overflow-hidden shadow-md ring-1 ring-black/[0.04]">
+      <div className="border-border/60 from-muted/30 bg-gradient-to-br to-card border-b px-6 py-5 sm:px-8">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="bg-primary/10 text-primary border-primary/15 flex size-11 shrink-0 items-center justify-center rounded-xl border shadow-sm">
+              <Building2Icon className="size-5" aria-hidden />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <CardTitle className="font-heading text-xl tracking-tight md:text-2xl">
+                Workspace profile
+              </CardTitle>
+              <CardDescription className="max-w-xl text-pretty leading-relaxed">
+                Name and region for this organisation. Share the workspace ID only with support.
+              </CardDescription>
+            </div>
           </div>
-          <div className="min-w-0 space-y-1">
-            <CardTitle className="font-heading text-xl tracking-tight md:text-2xl">
-              Workspace
-            </CardTitle>
-            <CardDescription className="max-w-xl text-pretty leading-relaxed">
-              Name, plan, and workspace ID. Share the ID only with people who need it for support.
-            </CardDescription>
-          </div>
+          <Badge
+            variant={planBadgeVariant(plan)}
+            className="h-7 shrink-0 font-medium tabular-nums"
+          >
+            {planLabel(normalizePlan(plan))}
+          </Badge>
         </div>
-        <Badge
-          variant={planBadgeVariant(plan)}
-          className="h-7 shrink-0 font-medium tabular-nums"
-        >
-          {planLabel(normalizePlan(plan))}
-        </Badge>
-      </CardHeader>
+      </div>
 
-      <CardContent className="space-y-0 pt-4">
+      <CardContent className="space-y-0 px-6 py-2 sm:px-8">
         {renameOk ? (
           <p className="text-primary mb-4 text-sm font-medium" role="status">
             Workspace name updated.
           </p>
         ) : null}
 
-        <dl className="space-y-1">
-          <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-            <div className="flex min-w-0 flex-1 gap-3">
-              <LayersIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
-              <div className="min-w-0 space-y-1">
-                <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+        <dl className="divide-border/60 grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+          <div className="sm:col-span-2">
+            <div className="flex flex-col gap-3 py-6 sm:flex-row sm:items-start sm:gap-5">
+              <LayersIcon className="text-muted-foreground mt-1 size-4 shrink-0 sm:mt-1" aria-hidden />
+              <div className="min-w-0 flex-1 space-y-2">
+                <dt className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
                   Display name
                 </dt>
                 {editing ? (
@@ -212,73 +211,65 @@ export function WorkspaceOrganizationSettings({
                 )}
                 {!canRename && !editing ? (
                   <p className="text-muted-foreground text-xs leading-relaxed">
-                    Ask a workspace admin to rename the organization.
+                    Ask a workspace admin to rename the organisation.
                   </p>
                 ) : null}
               </div>
             </div>
           </div>
 
-          <Separator />
-
-          <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-            <div className="flex min-w-0 flex-1 gap-3">
-              <HashIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
-              <div className="min-w-0 flex-1 space-y-2">
-                <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                  Workspace ID
+          <div className="flex flex-col gap-3 px-0 py-6 sm:border-r-0 sm:px-0 sm:pr-6">
+            <div className="flex gap-3">
+              <CalendarIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
+              <div className="space-y-1">
+                <dt className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
+                  Created
                 </dt>
-                <dd className="font-mono text-foreground text-sm leading-relaxed break-all sm:text-[13px]">
-                  {workspaceId}
-                </dd>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1.5 text-xs font-medium"
-                    onClick={() => void copyId()}
-                  >
-                    {copied ? (
-                      <CheckIcon className="size-3.5 text-emerald-600" aria-hidden />
-                    ) : (
-                      <CopyIcon className="size-3.5" aria-hidden />
-                    )}
-                    {copied ? "Copied" : "Copy full ID"}
-                  </Button>
-                </div>
+                <dd className="text-foreground font-medium">{createdLabel}</dd>
               </div>
             </div>
           </div>
 
-          <Separator />
-
-          <div className="flex gap-3 py-4">
-            <MapPinIcon
-              className="text-muted-foreground mt-0.5 size-4 shrink-0"
-              aria-hidden
-            />
-            <div className="space-y-1">
-              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                Manager country
-              </dt>
-              <dd className="text-foreground font-medium">{countryLabel || "—"}</dd>
-              <p className="text-muted-foreground max-w-md text-xs leading-relaxed">
-                Captured when the workspace was created. Pricing is quoted in ₹ INR for
-                every region.
-              </p>
+          <div className="flex flex-col gap-3 py-6 sm:border-l sm:pl-6">
+            <div className="flex gap-3">
+              <MapPinIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
+              <div className="space-y-1">
+                <dt className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
+                  Country
+                </dt>
+                <dd className="text-foreground font-medium">{countryLabel || "—"}</dd>
+                <p className="text-muted-foreground max-w-xs text-xs leading-relaxed">
+                  Set at creation. Pricing is quoted in ₹ INR for every region.
+                </p>
+              </div>
             </div>
           </div>
 
-          <Separator />
-
-          <div className="flex gap-3 py-4">
-            <CalendarIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
-            <div className="space-y-1">
-              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                Created
-              </dt>
-              <dd className="text-foreground font-medium">{createdLabel}</dd>
+          <div className="sm:col-span-2">
+            <div className="flex flex-col gap-3 py-6 sm:flex-row sm:items-start sm:gap-5">
+              <HashIcon className="text-muted-foreground mt-1 size-4 shrink-0" aria-hidden />
+              <div className="min-w-0 flex-1 space-y-2">
+                <dt className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
+                  Workspace ID
+                </dt>
+                <dd className="bg-muted/40 border-border/60 rounded-lg border px-3 py-2 font-mono text-[13px] leading-relaxed break-all">
+                  {workspaceId}
+                </dd>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-1 h-8 gap-1.5 text-xs font-medium"
+                  onClick={() => void copyId()}
+                >
+                  {copied ? (
+                    <CheckIcon className="size-3.5 text-emerald-600" aria-hidden />
+                  ) : (
+                    <CopyIcon className="size-3.5" aria-hidden />
+                  )}
+                  {copied ? "Copied" : "Copy full ID"}
+                </Button>
+              </div>
             </div>
           </div>
         </dl>
@@ -289,20 +280,17 @@ export function WorkspaceOrganizationSettings({
 
 export function SettingsWorkspaceTipsCard(): ReactElement {
   return (
-    <Card className="border-border/60 bg-muted/20 h-fit border-dashed shadow-none">
+    <Card className="border-border/70 h-fit shadow-md ring-1 ring-black/[0.04]">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold tracking-tight">
-          Roles & billing
-        </CardTitle>
+        <CardTitle className="text-base font-semibold tracking-tight">Roles & billing</CardTitle>
         <CardDescription className="text-xs leading-relaxed">
-          The person who creates the workspace is the owner and stays Admin by default.
-          Admins manage plans and billing; once teammates sign in, assign Manager or Admin
-          in Settings.
+          The person who creates the workspace is the owner and stays Admin by default. Admins
+          manage plans and billing; invite teammates from the directory, then assign Manager, TL, or
+          HR on this page.
         </CardDescription>
       </CardHeader>
-      <CardContent className="text-muted-foreground pt-0 text-xs leading-relaxed">
-        Billing runs through Razorpay in ₹. Use the directory and review tools while your
-        admins pick the right tier.
+      <CardContent className="text-muted-foreground border-border/50 border-t pt-3 text-xs leading-relaxed">
+        Billing runs through Razorpay in ₹ (INR). Each workspace has its own plan and seat limits.
       </CardContent>
     </Card>
   );
@@ -310,7 +298,7 @@ export function SettingsWorkspaceTipsCard(): ReactElement {
 
 export function SettingsQuickLinksCard(): ReactElement {
   return (
-    <Card className="border-border/75 h-fit shadow-md">
+    <Card className="border-border/70 h-fit shadow-md ring-1 ring-black/[0.04]">
       <CardHeader className="pb-3">
         <CardTitle className="text-base font-semibold tracking-tight">
           Quick links

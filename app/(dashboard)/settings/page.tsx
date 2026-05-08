@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 
 import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { WorkspaceMembersCard } from "@/components/settings/workspace-members-card";
-import { WorkspaceSwitcher } from "@/components/settings/workspace-switcher";
+import { WorkspaceHubCard } from "@/components/settings/workspace-hub";
 import {
   SettingsQuickLinksCard,
   SettingsWorkspaceTipsCard,
@@ -87,7 +87,7 @@ export default async function SettingsPage(): Promise<ReactElement | null> {
     const myOrgIds = ((myMembershipsRes.data ?? []) as Array<{ org_id: string }>).map(
       (m) => m.org_id,
     );
-    if (myOrgIds.length > 1) {
+    if (myOrgIds.length >= 1) {
       const { data: orgs } = await access.supabase
         .from("organizations")
         .select("id, name")
@@ -100,6 +100,10 @@ export default async function SettingsPage(): Promise<ReactElement | null> {
 
   const orgName = organization?.name ?? "Workspace";
 
+  if (user && workspaceOptions.length === 0) {
+    workspaceOptions = [{ id: access.orgId, name: orgName }];
+  }
+
   const countryLabel =
     MANAGER_COUNTRIES.find((c) => c.code === organization?.country_code)?.name ??
     organization?.country_code ??
@@ -109,15 +113,16 @@ export default async function SettingsPage(): Promise<ReactElement | null> {
     <>
       <DashboardHeader
         title="Settings"
-        description="Workspace identity, members, and shortcuts."
+        description="Workspaces, organisation profile, members, and shortcuts."
       />
       <main className="relative flex flex-1 flex-col overflow-x-hidden">
         <div className="mx-auto w-full max-w-6xl px-6 py-10 md:py-12">
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_min(100%,300px)] xl:grid-cols-[minmax(0,1fr)_min(100%,320px)] lg:items-start">
             <div className="min-w-0 space-y-8">
               {user ? (
-                <WorkspaceSwitcher
+                <WorkspaceHubCard
                   activeOrgId={access.orgId}
+                  activeOrgName={orgName}
                   options={workspaceOptions}
                 />
               ) : null}

@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { z } from "zod";
 
@@ -42,6 +43,7 @@ export async function setActiveWorkspace(
     httpOnly: true,
   });
 
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 

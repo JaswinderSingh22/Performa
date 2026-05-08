@@ -19,3 +19,9 @@ export const onboardingSchema = z.object({
 });
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
+
+/** Additional workspace creation (already has an account profile). */
+export const createWorkspaceSchema = onboardingSchema.pick({
+  organizationName: true,
+  countryCode: true,
+});

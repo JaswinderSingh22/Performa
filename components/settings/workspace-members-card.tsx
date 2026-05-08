@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 type MemberRow = {
   id: string;
@@ -69,33 +70,37 @@ export function WorkspaceMembersCard({
   }, [members]);
 
   return (
-    <Card className="border-border/75 from-card/98 to-muted/[0.12] overflow-hidden bg-gradient-to-br shadow-md">
-      <CardHeader className="space-y-1 pb-2">
-        <div className="flex items-center gap-2">
-          <div className="bg-primary/11 text-primary border-primary/12 flex size-10 shrink-0 items-center justify-center rounded-xl border shadow-inner">
-            <UsersIcon className="size-5" aria-hidden />
-          </div>
-          <div>
-            <CardTitle className="font-heading text-lg tracking-tight">
-              Workspace accounts
-            </CardTitle>
-            <CardDescription className="max-w-2xl text-pretty leading-relaxed">
-              People who sign in to Performa in this workspace.{" "}
-              {!canManageRoles
-                ? "Only Admins can change roles."
-                : "Owners stay Admin; you can assign Manager or Admin to others when you invite teammates."}
-            </CardDescription>
+    <Card className="border-border/70 overflow-hidden shadow-md ring-1 ring-black/[0.04]">
+      <CardHeader className="border-border/60 bg-muted/20 border-b pb-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="bg-primary/10 text-primary border-primary/15 flex size-10 shrink-0 items-center justify-center rounded-xl border shadow-sm">
+              <UsersIcon className="size-5" aria-hidden />
+            </div>
+            <div>
+              <CardTitle className="font-heading text-lg tracking-tight">People & access</CardTitle>
+              <CardDescription className="mt-1 max-w-2xl text-pretty text-sm leading-relaxed">
+                Logins tied to this workspace.{" "}
+                {!canManageRoles
+                  ? "Only admins can change roles."
+                  : "Owners keep Admin; use the directory to invite teammates first, then assign roles here."}
+              </CardDescription>
+            </div>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 pt-0">
+      <CardContent className="px-0 pt-0 pb-4">
         {error ? (
           <p className="text-destructive text-sm" role="alert">
             {error}
           </p>
         ) : null}
-        <div className="divide-border/60 divide-y rounded-xl border border-border/70">
-          {sorted.map((m) => {
+        <div className="border-border/60 overflow-hidden rounded-none border-x-0 border-b-0 border-t bg-muted/15">
+          <div className="text-muted-foreground border-border/50 grid grid-cols-[1fr_auto] gap-2 border-b bg-muted/30 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider">
+            <span>Member</span>
+            <span className="text-right">Workspace role</span>
+          </div>
+          {sorted.map((m, index) => {
             const isOwner = createdByUserId !== null && m.id === createdByUserId;
             const showDropdown =
               canManageRoles && !isOwner && busyId !== m.id;
@@ -103,7 +108,11 @@ export function WorkspaceMembersCard({
             return (
               <div
                 key={m.id}
-                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 first:rounded-t-xl last:rounded-b-xl"
+                className={cn(
+                  "border-border/50 hover:bg-muted/25 grid grid-cols-1 items-center gap-3 border-b px-4 py-3.5 transition-colors sm:grid-cols-[1fr_auto] sm:gap-4",
+                  index % 2 === 1 && "bg-muted/10",
+                  index === sorted.length - 1 && "border-b-0",
+                )}
               >
                 <div className="flex min-w-0 flex-col gap-1">
                   <div className="flex flex-wrap items-center gap-2">

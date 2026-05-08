@@ -4,6 +4,12 @@ import { redirect } from "next/navigation";
 import { OnboardingForm } from "@/components/auth/onboarding-form";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
+type MembershipRow = {
+  org_id: string;
+  employee_id: string | null;
+  joined_at: string | null;
+};
+
 export default async function OnboardingPage() {
   const supabase = await createServerSupabaseClient();
   const {
@@ -14,15 +20,24 @@ export default async function OnboardingPage() {
     redirect("/login?next=/onboarding");
   }
 
-  // Check if this user was invited into an existing workspace.
-  const { data: membership } = await supabase
+  const { data: membershipRows, error: memErr } = await supabase
     .from("workspace_members")
-    .select("org_id, role, employee_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
+    .select("org_id, role, employee_id, joined_at")
+    .eq("user_id", user.id);
 
-  if (membership?.org_id) {
-    // Invited user — look up their name from the employee record (already entered by admin).
+  if (memErr) {
+    throw new Error(memErr.message);
+  }
+
+  const list = (membershipRows ?? []) as MembershipRow[];
+
+  const pendingInvites = list.filter(
+    (m) => m.employee_id != null && (m.joined_at == null || m.joined_at === ""),
+  );
+
+  if (pendingInvites.length >= 1) {
+    const membership = pendingInvites[0]!;
+
     let fullName: string | null = null;
     if (membership.employee_id) {
       const { data: emp } = await supabase
@@ -33,7 +48,6 @@ export default async function OnboardingPage() {
       fullName = emp?.name ?? null;
     }
 
-    // Auto-create their profile from the employee record — no form needed.
     await supabase.from("user_profiles").upsert({
       user_id: user.id,
       full_name: fullName ?? user.email ?? "",
@@ -41,11 +55,11 @@ export default async function OnboardingPage() {
     });
 
     await supabase.rpc("mark_own_workspace_joined", {
-      p_org_id: membership.org_id as string,
+      p_org_id: membership.org_id,
     });
 
     const cookieStore = await cookies();
-    cookieStore.set("active_org_id", membership.org_id as string, {
+    cookieStore.set("active_org_id", membership.org_id, {
       path: "/",
       sameSite: "lax",
       httpOnly: true,
@@ -54,7 +68,10 @@ export default async function OnboardingPage() {
     redirect("/employees");
   }
 
-  // New org creator — show the full setup form.
+  if (list.length > 0) {
+    redirect("/dashboard");
+  }
+
   const meta = user.user_metadata as Record<string, unknown> | undefined;
   const suggested =
     typeof meta?.full_name === "string"
