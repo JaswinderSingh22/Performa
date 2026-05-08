@@ -10,7 +10,6 @@ import {
   ChevronRightIcon,
   GitBranchIcon,
   LayoutGridIcon,
-  ActivityIcon,
   LogOutIcon,
   ReceiptIndianRupeeIcon,
   Settings2Icon,
@@ -68,15 +67,9 @@ const navPeople: NavItem[] = [
 const navAdmin: NavItem[] = [
   {
     href: "/billing",
-    label: "Billing",
+    label: "Billing & usage",
     Icon: ReceiptIndianRupeeIcon,
     iconWrapClass: "bg-amber-500/12 text-amber-700 dark:text-amber-300",
-  },
-  {
-    href: "/usage",
-    label: "Usage",
-    Icon: ActivityIcon,
-    iconWrapClass: "bg-fuchsia-500/12 text-fuchsia-700 dark:text-fuchsia-300",
   },
 ];
 
