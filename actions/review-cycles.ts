@@ -382,13 +382,33 @@ export async function submitSelfReview(
 
   const { data: row, error: findErr } = await admin
     .from("employee_self_reviews")
-    .select("id, status, org_id, review_cycles(self_review_template_preset)")
+    .select("id, status, org_id, employee_id, review_cycles(self_review_template_preset)")
     .eq("form_token", parsed.data.token)
     .maybeSingle();
 
   if (findErr || !row) return { ok: false, error: "This review link is invalid or expired." };
   if (row.status === "submitted")
     return { ok: false, error: "You have already submitted this review." };
+
+  const { data: empRow, error: empErr } = await admin
+    .from("employees")
+    .select("email")
+    .eq("id", row.employee_id as string)
+    .eq("org_id", row.org_id as string)
+    .maybeSingle();
+
+  if (empErr || !empRow) {
+    return { ok: false, error: "We could not verify your employee record. Contact HR." };
+  }
+  const workEmail =
+    typeof empRow.email === "string" ? empRow.email.trim().toLowerCase() : "";
+  if (!workEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(workEmail)) {
+    return {
+      ok: false,
+      error:
+        "A valid work email must be saved on your employee profile before you can submit your self-review. Ask HR or your admin to update it in the directory.",
+    };
+  }
 
   const { data: orgRow } = await admin
     .from("organizations")
@@ -426,6 +446,7 @@ export async function submitSelfReview(
       growth_areas: parsed.data.growth_areas,
       support_needed: parsed.data.support_needed,
       self_rating: parsed.data.self_rating,
+      submitted_by_email: workEmail,
       status: "submitted",
       workflow_status: "employee_submitted",
       submitted_at: new Date().toISOString(),

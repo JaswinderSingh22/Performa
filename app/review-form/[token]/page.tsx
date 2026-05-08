@@ -34,6 +34,29 @@ export default async function PublicSelfReviewFormPage({
   };
 
   if (!typedReview.review_cycles || !typedReview.employees) notFound();
+
+  const profileEmail =
+    typeof typedReview.employees.email === "string" ? typedReview.employees.email.trim() : "";
+  const emailLooksValid =
+    profileEmail.length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profileEmail.toLowerCase());
+  if (typedReview.status === "pending" && !emailLooksValid) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <div className="max-w-md text-center">
+          <div className="bg-muted mx-auto mb-6 flex size-16 items-center justify-center rounded-2xl text-3xl">
+            ✉️
+          </div>
+          <h1 className="text-xl font-bold">Email required on your profile</h1>
+          <p className="text-muted-foreground mt-3 text-sm leading-relaxed">
+            Your organisation needs a valid work email on file before you can submit this self-review, so we
+            can record who responded. Ask HR or your admin to add or correct your email in the employee
+            directory, then open this link again.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (typedReview.review_cycles.status === "closed") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-6">

@@ -365,7 +365,9 @@ export default async function CycleDetailPage({
                       <p className="truncate text-sm font-medium">{emp.name}</p>
                       <p className="text-muted-foreground truncate text-xs">
                         {emp.employee_code ? `${emp.employee_code} · ` : ""}
-                        {emp.role || emp.team_name || emp.email}
+                        {sr.status === "submitted" || sr.status === "late"
+                          ? sr.submitted_by_email ?? emp.email ?? "—"
+                          : emp.email || emp.role || emp.team_name || "—"}
                       </p>
                     </div>
 

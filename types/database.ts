@@ -200,6 +200,8 @@ export interface EmployeeSelfReviewRow {
   org_id: string;
   /** Legacy: optional FK to custom row; self-review copy is driven by the cycle’s questionnaire preset. */
   template_id?: string | null;
+  /** Set when status becomes submitted — copy of employees.email at submit time. */
+  submitted_by_email?: string | null;
   highlights: string;
   challenges: string;
   goals_next_period: string;
