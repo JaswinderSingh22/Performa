@@ -5,7 +5,6 @@ import type {
   OpenCycleProgress,
   OrgReviewTotals,
   PeopleHealth,
-  RecentCycleRow,
   ReviewPipeline,
   TeamSlice,
 } from "@/components/dashboard/dashboard-view";
@@ -108,18 +107,11 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
     teamCtx.isTeamDashboard && analyticsIds !== null && analyticsIds.length === 0;
 
   const [
-    recentCyclesRes,
     openCyclesRes,
     draftCyclesCountRes,
     pendingInvitesRes,
     cycleCountRes,
   ] = await Promise.all([
-    access.supabase
-      .from("review_cycles")
-      .select("id, title, status, created_at")
-      .eq("org_id", orgId)
-      .order("created_at", { ascending: false })
-      .limit(8),
     access.supabase
       .from("review_cycles")
       .select("id, title, self_review_due")
@@ -328,45 +320,6 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
 
   const skipEsrScoped = analyticsIds !== null && analyticsIds.length === 0;
 
-  // Recent cycles
-  const recentCycles: RecentCycleRow[] = [];
-  if (!recentCyclesRes.error && recentCyclesRes.data) {
-    const cycleIds = recentCyclesRes.data.map((c) => c.id);
-    const submissionCounts: Record<string, { total: number; submitted: number }> = {};
-    if (cycleIds.length > 0 && !skipEsrScoped) {
-      let rq = access.supabase
-        .from("employee_self_reviews")
-        .select("review_cycle_id, status")
-        .in("review_cycle_id", cycleIds)
-        .eq("org_id", orgId);
-      if (analyticsIds !== null && analyticsIds.length > 0) {
-        rq = rq.in("employee_id", analyticsIds);
-      }
-      const { data: reviews } = await rq;
-      if (reviews) {
-        for (const r of reviews) {
-          const cid = r.review_cycle_id as string;
-          if (!submissionCounts[cid]) submissionCounts[cid] = { total: 0, submitted: 0 };
-          submissionCounts[cid].total++;
-          if (r.status === "submitted" || r.status === "late") {
-            submissionCounts[cid].submitted++;
-          }
-        }
-      }
-    }
-    for (const c of recentCyclesRes.data) {
-      const counts = submissionCounts[c.id] ?? { total: 0, submitted: 0 };
-      recentCycles.push({
-        id: c.id,
-        title: c.title ?? "Untitled cycle",
-        status: c.status as string,
-        totalEmployees: counts.total,
-        submitted: counts.submitted,
-        createdAt: c.created_at,
-      });
-    }
-  }
-
   const openCycleProgress: OpenCycleProgress[] = [];
   const reviewTotals: OrgReviewTotals = { submitted: 0, pending: 0, total: 0 };
   const pipeline: ReviewPipeline = {
@@ -475,7 +428,6 @@ export default async function DashboardPage(): Promise<ReactElement | null> {
         activeCycleCount={activeCycleCount}
         teams={teams}
         departments={departments}
-        recentCycles={recentCycles}
         teamsError={employeesTeamsErr}
         departmentsError={employeesDeptErr}
         openCycleProgress={visibleOpenProgress}

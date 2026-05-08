@@ -17,7 +17,6 @@ import {
   UsersIcon,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -34,15 +33,6 @@ import { cn } from "@/lib/utils";
 
 export type TeamSlice = { name: string; count: number };
 export type DepartmentSlice = { name: string; count: number };
-
-export type RecentCycleRow = {
-  id: string;
-  title: string;
-  status: string;
-  totalEmployees: number;
-  submitted: number;
-  createdAt: string;
-};
 
 export type OpenCycleProgress = {
   id: string;
@@ -84,7 +74,6 @@ export type DashboardViewProps = {
   activeCycleCount: number;
   teams: TeamSlice[];
   departments: DepartmentSlice[];
-  recentCycles: RecentCycleRow[];
   teamsError?: boolean;
   departmentsError?: boolean;
   openCycleProgress: OpenCycleProgress[];
@@ -125,14 +114,6 @@ function AnimatedBar({
   );
 }
 
-function cycleStatusBadge(status: string): ReactElement {
-  if (status === "open")
-    return <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-normal">Open</Badge>;
-  if (status === "closed")
-    return <Badge variant="secondary" className="font-normal">Closed</Badge>;
-  return <Badge variant="outline" className="font-normal text-amber-700 dark:text-amber-400 border-amber-500/30 bg-amber-500/10">Draft</Badge>;
-}
-
 export function DashboardView({
   employeeCount,
   teamCount,
@@ -140,7 +121,6 @@ export function DashboardView({
   activeCycleCount,
   teams,
   departments,
-  recentCycles,
   teamsError = false,
   departmentsError = false,
   openCycleProgress,
@@ -406,7 +386,8 @@ export function DashboardView({
                   </Link>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-5 pt-5">
+              <CardContent className="min-h-0 pt-5">
+                <div className="max-h-[min(22rem,50vh)] space-y-5 overflow-x-hidden overflow-y-auto pr-1 [scrollbar-gutter:stable]">
                 {openCycleProgress.map((cycle, idx) => {
                   const pct =
                     cycle.total > 0 ? Math.round((cycle.submitted / cycle.total) * 100) : 0;
@@ -458,6 +439,7 @@ export function DashboardView({
                     </Link>
                   );
                 })}
+                </div>
               </CardContent>
             </Card>
           </motion.div>
@@ -708,88 +690,6 @@ export function DashboardView({
           </motion.div>
         </div>
 
-        <motion.div
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            duration: 0.48,
-            ease: easingOut,
-            delay: prefersReducedMotion ? 0 : 0.28,
-          }}
-        >
-          <Card className="border-border/70 shadow-md ring-1 ring-black/[0.04]">
-            <CardHeader className="border-border/60 flex flex-row flex-wrap items-start justify-between gap-3 border-b">
-              <div>
-                <CardTitle>Recent review cycles</CardTitle>
-                <CardDescription>
-                  {teamDash
-                    ? "Latest cycles — submission counts scoped to your team roster."
-                    : "Latest cycles — click to view submission details."}
-                </CardDescription>
-              </div>
-              <Link
-                href="/reviews"
-                className="text-primary hover:text-primary/80 flex items-center gap-1 text-sm font-medium transition-colors"
-              >
-                View all <ArrowUpRightIcon className="size-3.5" />
-              </Link>
-            </CardHeader>
-            <CardContent className="px-0 pt-0">
-              {recentCycles.length === 0 ? (
-                <p className="text-muted-foreground px-4 py-12 text-center text-sm md:px-6">
-                  No review cycles yet.{" "}
-                  <Link href="/reviews" className="text-primary hover:underline">
-                    Create your first cycle
-                  </Link>{" "}
-                  to get started.
-                </p>
-              ) : (
-                <ul className="divide-border/75 divide-y">
-                  {recentCycles.map((row, idx) => {
-                    const pct =
-                      row.totalEmployees > 0
-                        ? Math.round((row.submitted / row.totalEmployees) * 100)
-                        : 0;
-                    return (
-                      <motion.li
-                        key={row.id}
-                        initial={prefersReducedMotion ? false : { opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{
-                          duration: 0.32,
-                          ease: easingOut,
-                          delay: prefersReducedMotion ? 0 : 0.04 + idx * 0.045,
-                        }}
-                      >
-                        <Link
-                          href={`/reviews/${row.id}`}
-                          className="hover:bg-muted/45 flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 transition-colors md:px-6"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-foreground truncate font-medium">{row.title}</p>
-                            <p className="text-muted-foreground mt-0.5 text-xs">
-                              {row.totalEmployees > 0
-                                ? `${row.submitted}/${row.totalEmployees} submitted (${pct}%)`
-                                : "No employees assigned yet"}
-                              <span className="mx-1.5 opacity-40">·</span>
-                              {new Date(row.createdAt).toLocaleDateString(undefined, {
-                                dateStyle: "medium",
-                              })}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            {cycleStatusBadge(row.status)}
-                            <ArrowUpRightIcon className="text-muted-foreground size-4 shrink-0 opacity-50" />
-                          </div>
-                        </Link>
-                      </motion.li>
-                    );
-                  })}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
       </main>
     </div>
   );
